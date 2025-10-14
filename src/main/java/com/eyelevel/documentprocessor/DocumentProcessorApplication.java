@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -12,32 +14,45 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /**
  * The main entry point for the Document Processor Spring Boot application.
  * <p>
- * This class is responsible for bootstrapping the application context and enabling key features:
+ * This class bootstraps the application context and enables key Spring features:
  * <ul>
- *     <li>{@code @SpringBootApplication}: Standard Spring Boot configuration, component scanning, and auto-configuration.</li>
- *     <li>{@code @EnableConfigurationProperties}: Binds custom application properties to the {@link DocumentProcessingConfig} class.</li>
- *     <li>{@code @EnableScheduling}: Activates Spring's scheduled task execution capabilities, used for periodic jobs like status syncing and cleanup.</li>
- *     <li>{@code @EnableAsync}: Enables Spring's asynchronous method execution capabilities.</li>
- *     <li>{@code @EnableJpaRepositories}: Explicitly configures the base package for scanning Spring Data JPA repositories.</li>
+ *     <li>{@link SpringBootApplication}: A composite annotation that enables auto-configuration,
+ *     component scanning, and property support.</li>
+ *     <li>{@link EnableConfigurationProperties}: Binds custom application properties (prefixed with "app.processing")
+ *     to the {@link DocumentProcessingConfig} class.</li>
+ *     <li>{@link EnableScheduling}: Activates Spring's scheduled task execution capabilities for background jobs
+ *     like status syncing and cleanup.</li>
+ *     <li>{@link EnableAsync}: Enables Spring's asynchronous method execution capabilities.</li>
+ *     <li>{@link EnableJpaRepositories}: Configures the base package for scanning Spring Data JPA repositories.</li>
  * </ul>
  */
-@SpringBootApplication
-@EnableConfigurationProperties(value = DocumentProcessingConfig.class)
-@EnableScheduling
-@EnableAsync
-@EnableJpaRepositories(basePackages = "com.eyelevel.documentprocessor.repository")
 @Slf4j
+@EnableAsync
+@EnableScheduling
+@SpringBootApplication
+@EnableJpaRepositories(basePackages = "com.eyelevel.documentprocessor.repository")
+@EnableConfigurationProperties(value = DocumentProcessingConfig.class)
 public class DocumentProcessorApplication {
 
     /**
      * The main method which serves as the entry point for the Java application.
-     * It delegates to Spring Boot's {@link SpringApplication} class to launch the application.
+     * It delegates to Spring Boot's {@link SpringApplication} class to launch the application,
+     * and logs key environment information upon startup.
      *
      * @param args Command-line arguments passed to the application.
      */
-    public static void main(String[] args) {
+    public static void main(final String[] args) {
         log.info("Starting DocumentProcessorApplication...");
-        SpringApplication.run(DocumentProcessorApplication.class, args);
-        log.info("DocumentProcessorApplication has started successfully.");
+
+        final ConfigurableApplicationContext context = SpringApplication.run(DocumentProcessorApplication.class, args);
+        final Environment env = context.getEnvironment();
+
+        log.info(
+                """
+                        ------------------------------------------------------------------
+                        \tApplication '{}' is running!
+                        ------------------------------------------------------------------""",
+                env.getProperty("spring.application.name", "DocumentProcessor")
+        );
     }
 }

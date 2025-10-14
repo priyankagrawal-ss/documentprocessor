@@ -1,4 +1,4 @@
-package com.eyelevel.documentprocessor.service;
+package com.eyelevel.documentprocessor.service.handlers.factory;
 
 import com.eyelevel.documentprocessor.service.handlers.FileHandler;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ public class FileHandlerFactory {
      * @param extension The file extension (e.g., "pdf", "docx").
      * @return An {@link Optional} containing the matched {@link FileHandler}, or empty if no handler is found.
      */
-    Optional<FileHandler> getHandler(String extension) {
+    public Optional<FileHandler> getHandler(String extension) {
         Optional<FileHandler> handler = handlers.stream()
                 .filter(h -> h.supports(extension))
                 .findFirst();

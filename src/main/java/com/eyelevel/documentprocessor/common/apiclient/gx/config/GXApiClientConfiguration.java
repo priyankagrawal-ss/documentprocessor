@@ -8,9 +8,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
-@Configuration
+/**
+ * Configures the necessary beans for the GroundX (GX) API client, including the
+ * {@link WebClient} for communication and the {@link Authentication} mechanism.
+ */
 @Slf4j
+@Configuration
 public class GXApiClientConfiguration {
+
     @Value("${app.gx-client.baseurl}")
     private String baseUrl;
 
@@ -20,19 +25,30 @@ public class GXApiClientConfiguration {
     @Value("${app.gx-client.auth-key-value}")
     private String headerValue;
 
+    /**
+     * Creates and configures the {@link WebClient} instance for connecting to the GroundX API.
+     *
+     * @return A configured {@link WebClient} bean named "gxWebClient".
+     */
     @Bean("gxWebClient")
     public WebClient groundXWebClient() {
-        log.info("Configuring GroundX WebClient with base URL: {}", baseUrl);
-        WebClient webClient = WebClient.builder().baseUrl(baseUrl).build();
-        log.debug("Created GroundX WebClient: {}", webClient);
-        return webClient;
+        log.info("Initializing GroundX WebClient with base URL: {}", baseUrl);
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .build();
     }
 
+    /**
+     * Creates the {@link Authentication} bean for the GroundX API using API key authentication.
+     *
+     * @return An {@link APIKeyAuthentication} instance configured with credentials from application properties.
+     */
     @Bean("gxAuthentication")
     public Authentication groundXAuthentication() {
-        log.info("Configuring GroundX Authentication with headerName: {}, headerValue: {}", headerName, headerValue);
-        Authentication authentication = new APIKeyAuthentication(headerName, headerValue);
-        log.debug("Created APIKeyAuthentication instance: {}", authentication.getClass());
-        return authentication;
+        log.info("Initializing GroundX authentication with header name: '{}'", headerName);
+        if (headerValue == null || headerValue.isBlank()) {
+            log.warn("GroundX API key is not configured. API calls may fail authentication.");
+        }
+        return new APIKeyAuthentication(headerName, headerValue);
     }
 }

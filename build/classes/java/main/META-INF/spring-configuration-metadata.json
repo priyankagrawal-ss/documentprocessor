@@ -8,17 +8,20 @@
     {
       "name": "app.processing.libreoffice",
       "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$LibreOffice",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getLibreoffice()"
     },
     {
       "name": "app.processing.pdf",
       "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getPdf()"
     },
     {
       "name": "app.processing.pdf.ghostscript",
       "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf"
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf",
+      "sourceMethod": "getGhostscript()"
     }
   ],
   "properties": [
@@ -30,26 +33,22 @@
     {
       "name": "app.processing.max-file-size",
       "type": "java.lang.Long",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
-      "defaultValue": 0
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
     },
     {
       "name": "app.processing.max-pages",
       "type": "java.lang.Integer",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
-      "defaultValue": 0
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
     },
     {
       "name": "app.processing.pdf.ghostscript.preset",
       "type": "java.lang.String",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript",
-      "defaultValue": "\/ebook"
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript"
     },
     {
       "name": "app.processing.pdf.optimize",
       "type": "java.lang.Boolean",
-      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf",
-      "defaultValue": false
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf"
     }
   ],
   "hints": []

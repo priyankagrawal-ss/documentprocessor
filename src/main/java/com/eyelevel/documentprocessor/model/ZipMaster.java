@@ -11,6 +11,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Represents a ZIP archive that has been uploaded for processing.
+ * It serves as the parent record for all {@link FileMaster} entities extracted from it.
+ */
 @Entity
 @Table(name = "zip_master")
 @Data
@@ -23,16 +27,29 @@ public class ZipMaster {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * The parent processing job associated with this ZIP file.
+     */
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "processing_job_id", nullable = false)
+    @JoinColumn(name = "processing_job_id", nullable = false, unique = true)
     private ProcessingJob processingJob;
 
+    /**
+     * A list of all files that were extracted from this ZIP archive.
+     */
     @OneToMany(mappedBy = "zipMaster", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FileMaster> fileMasters;
 
+    /**
+     * For single ZIP uploads, this specifies the target GX bucket for all extracted files.
+     * For bulk uploads, this will be null.
+     */
     @Column
     private Integer gxBucketId;
 
+    /**
+     * The current status of the ZIP extraction process itself.
+     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ZipProcessingStatus zipProcessingStatus;

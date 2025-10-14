@@ -2,8 +2,8 @@ package com.eyelevel.documentprocessor.consumer;
 
 import com.eyelevel.documentprocessor.exception.DocumentProcessingException;
 import com.eyelevel.documentprocessor.exception.MessageProcessingFailedException;
-import com.eyelevel.documentprocessor.service.JobFailureManager;
-import com.eyelevel.documentprocessor.service.ZipProcessingWorker;
+import com.eyelevel.documentprocessor.service.ZipExtractionService;
+import com.eyelevel.documentprocessor.service.lifecycle.JobLifecycleManager;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,44 +13,49 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * SQS message consumer that orchestrates the processing of ZIP archives.
- * It delegates the transactional work to a dedicated worker service.
+ * An SQS message consumer that orchestrates the processing of ZIP archives.
+ * It delegates the transactional extraction work to the {@link ZipExtractionService}.
  */
-@Component
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class ZipExtractionConsumer {
 
-    private final ZipProcessingWorker zipProcessingWorker;
-    private final JobFailureManager jobFailureManager;
+    private final ZipExtractionService zipExtractionService;
+    private final JobLifecycleManager jobLifecycleManager;
 
     /**
-     * Listens to the ZIP processing SQS queue. This method is non-transactional and acts only as an orchestrator.
+     * Listens to the designated SQS queue for ZIP processing messages.
+     * <p>
+     * This method distinguishes between two types of failures:
+     * <ul>
+     *   <li><b>Terminal Failures</b> (e.g., corrupt ZIP, invalid structure): The job is permanently failed.</li>
+     *   <li><b>Transient Failures</b> (e.g., temporary S3 issue): An exception is thrown to trigger an SQS retry.</li>
+     * </ul>
      *
-     * @param message The SQS message payload, expected to contain a zipMasterId.
+     * @param message The SQS message payload, expected to contain a "zipMasterId".
      */
     @SqsListener(value = "${aws.sqs.zip-queue-name}")
-    public void processZipMessage(@Payload Map<String, Object> message) {
-        Object idObject = message.get("zipMasterId");
-        if (idObject == null) {
-            log.error("[FATAL] Received SQS message for ZIP processing with no 'zipMasterId'. Message will be dropped. Payload: {}", message);
+    public void processZipMessage(@Payload final Map<String, Object> message) {
+        final Object idObject = message.get("zipMasterId");
+        if (!(idObject instanceof Number)) {
+            log.error("[FATAL] SQS message is invalid or missing 'zipMasterId'. Message will be dropped. Payload: {}", message);
             return;
         }
-        Long zipMasterId = ((Number) idObject).longValue();
+
+        final Long zipMasterId = ((Number) idObject).longValue();
         log.info("Received ZIP extraction task for ZipMaster ID: {}", zipMasterId);
 
         try {
-            // Delegate the entire transactional operation to the worker.
-            zipProcessingWorker.lockAndProcessZip(zipMasterId);
+            zipExtractionService.extractAndQueueFiles(zipMasterId);
         } catch (DocumentProcessingException e) {
-            // This is a terminal failure (like invalid bulk structure). Mark as failed but do not retry.
-            log.error("Terminal error processing ZipMaster ID: {}. Marking job as FAILED.", zipMasterId, e);
-            jobFailureManager.markZipJobAsFailed(zipMasterId, e.getMessage());
+            // This is a terminal failure (e.g., invalid bulk structure). Mark job as FAILED and do not retry.
+            log.error("A terminal error occurred processing ZipMaster ID: {}. Marking job as FAILED.", zipMasterId, e);
+            jobLifecycleManager.failJobForZipExtraction(zipMasterId, e.getMessage());
         } catch (Exception e) {
-            // This is a potentially transient failure (like corrupt zip, network issue).
-            // Mark as failed and trigger SQS retry.
-            log.error("Transient error processing ZipMaster ID: {}. Marking job as FAILED and triggering retry.", zipMasterId, e);
-            jobFailureManager.markZipJobAsFailed(zipMasterId, e.getMessage());
+            // This is a potentially transient failure. Mark as failed and trigger SQS retry.
+            log.error("A transient error occurred processing ZipMaster ID: {}. Marking job as FAILED and triggering retry.", zipMasterId, e);
+            jobLifecycleManager.failJobForZipExtraction(zipMasterId, e.getMessage());
             throw new MessageProcessingFailedException("Failed to process ZIP for ZipMaster ID " + zipMasterId, e);
         }
     }

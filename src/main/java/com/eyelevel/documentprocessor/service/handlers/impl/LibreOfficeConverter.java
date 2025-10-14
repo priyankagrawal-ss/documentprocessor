@@ -1,4 +1,4 @@
-package com.eyelevel.documentprocessor.service;
+package com.eyelevel.documentprocessor.service.handlers.impl;
 
 import com.eyelevel.documentprocessor.config.DocumentProcessingConfig;
 import com.eyelevel.documentprocessor.exception.FileConversionException;

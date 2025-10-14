@@ -15,23 +15,20 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Schedules and manages the uploading of documents to the GroundX (GX) service.
- * <p>
- * This scheduler periodically checks for documents that are queued for upload,
- * respects the configured concurrent processing limits, and handles the entire
- * upload lifecycle including status updates and error handling.
+ * A scheduler that manages the uploading of processed documents to the GroundX (GX) service.
+ * It respects concurrency limits and handles the upload lifecycle.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class GXDocumentUploadScheduler {
 
     private final GxMasterRepository gxMasterRepository;
@@ -39,88 +36,78 @@ public class GXDocumentUploadScheduler {
     private final GXApiClient gxApiClient;
 
     @Value("${app.gx.max-process}")
-    private int maxGXProcess;
+    private int maxConcurrentGxProcesses;
 
     /**
-     * Periodically initiates the document upload process to GroundX.
+     * Runs on a fixed schedule to initiate document uploads to GroundX.
      * <p>
-     * This method runs based on a cron expression and performs the following steps:
-     * 1. Checks the number of documents currently being processed by GX.
-     * 2. If the processing limit is reached, it skips the current run.
-     * 3. Fetches a batch of documents with the status {@link GxStatus#QUEUED_FOR_UPLOAD}.
-     * 4. For each document, it generates a pre-signed S3 URL and calls the GX API to start the upload.
-     * 5. Updates the document's status in the database based on the API response.
-     * 6. All database updates within a single run are performed in a single transaction.
+     * This method respects a concurrency limit ({@code maxConcurrentGxProcesses}) to avoid overloading
+     * the external service. It fetches a batch of documents ready for upload, calls the GX API
+     * to start the ingestion, and updates the database records within a single transaction.
      */
     @Scheduled(cron = "${app.scheduler.gx-doc-upload}")
     @Transactional
     public void initiateGXDocumentUpload() {
-        log.info("Starting GX document upload scheduler run.");
+        log.info("Starting GX document upload scheduler...");
 
         try {
-            List<GxStatus> processingStatus = List.of(GxStatus.QUEUED, GxStatus.PROCESSING);
-            final long gxProcessingCount = gxMasterRepository.countByGxStatusIn(processingStatus);
+            final List<GxStatus> inProgressStatuses = List.of(GxStatus.QUEUED, GxStatus.PROCESSING);
+            final long gxProcessingCount = gxMasterRepository.countByGxStatusIn(inProgressStatuses);
 
-            if (gxProcessingCount >= maxGXProcess) {
-                log.info(
-                        "GX processing limit reached. {} tasks are already in progress. Skipping this run.",
-                        gxProcessingCount
-                );
+            if (gxProcessingCount >= maxConcurrentGxProcesses) {
+                log.info("GX processing limit reached (in progress: {}, limit: {}). Skipping this run.",
+                        gxProcessingCount, maxConcurrentGxProcesses);
                 return;
             }
 
-            final int availableBandwidth = (int) (maxGXProcess - gxProcessingCount);
+            final int availableSlots = (int) (maxConcurrentGxProcesses - gxProcessingCount);
             final List<GxMaster> documentsToUpload = gxMasterRepository.findByGxStatusOrderByCreatedAtAsc(
-                    GxStatus.QUEUED_FOR_UPLOAD,
-                    PageRequest.of(0, availableBandwidth)
+                    GxStatus.QUEUED_FOR_UPLOAD, PageRequest.of(0, availableSlots)
             );
 
-            if (documentsToUpload.isEmpty()) {
-                log.info("No documents are currently queued for upload to GX.");
+            if (CollectionUtils.isEmpty(documentsToUpload)) {
+                log.info("No documents are currently queued for upload to GX. Scheduler run is complete.");
                 return;
             }
 
-            log.info("Found {} documents to upload to GX. Available bandwidth: {}", documentsToUpload.size(), availableBandwidth);
-
+            log.info("Found {} documents to upload to GX. Available slots: {}", documentsToUpload.size(), availableSlots);
             final List<GxMaster> updatedMasters = new ArrayList<>();
             for (final GxMaster gxMaster : documentsToUpload) {
-                processDocument(gxMaster);
+                processDocumentUpload(gxMaster);
                 updatedMasters.add(gxMaster);
             }
 
             gxMasterRepository.saveAll(updatedMasters);
-            log.info("Successfully processed {} documents in this scheduler run.", updatedMasters.size());
+            log.info("Successfully initiated upload for {} documents.", updatedMasters.size());
 
         } catch (final Exception e) {
             log.error("An unexpected error occurred during the GX document upload scheduler run.", e);
         }
+        log.info("GX document upload scheduler finished.");
     }
 
     /**
-     * Processes a single document for upload.
-     *
-     * @param gxMaster The GxMaster entity representing the document.
+     * Processes a single document for upload by generating a pre-signed URL and calling the GX API.
      */
-    private void processDocument(final GxMaster gxMaster) {
+    private void processDocumentUpload(final GxMaster gxMaster) {
         try {
             final URL downloadUrl = s3StorageService.generatePresignedDownloadUrl(gxMaster.getFileLocation());
-
-            final GXDocumentUploadParameters uploadParameters = new GXDocumentUploadParameters(
+            final GXDocumentUploadParameters uploadParams = new GXDocumentUploadParameters(
                     gxMaster.getGxBucketId(),
                     gxMaster.getProcessedFileName(),
                     gxMaster.getExtension(),
                     downloadUrl.toExternalForm()
             );
 
-            final GXUploadDocumentResponse response = gxApiClient.uploadDocument(uploadParameters);
-            handleApiResponse(response, gxMaster);
+            final GXUploadDocumentResponse response = gxApiClient.uploadDocument(uploadParams);
+            updateMasterFromApiResponse(response, gxMaster);
 
         } catch (final ApiException e) {
-            log.error("API error while uploading document ID {}: {}", gxMaster.getId(), e.getMessage(), e);
+            log.error("API error while uploading GxMaster ID {}: {}", gxMaster.getId(), e.getMessage(), e);
             gxMaster.setGxStatus(GxStatus.ERROR);
             gxMaster.setErrorMessage("API Error: " + e.getMessage());
         } catch (final Exception e) {
-            log.error("An unexpected error occurred while processing document ID {}: {}", gxMaster.getId(), e.getMessage(), e);
+            log.error("Unexpected error while processing GxMaster ID {}: {}", gxMaster.getId(), e.getMessage(), e);
             gxMaster.setGxStatus(GxStatus.ERROR);
             gxMaster.setErrorMessage("Unexpected Error: " + e.getMessage());
         }
@@ -128,36 +115,27 @@ public class GXDocumentUploadScheduler {
 
     /**
      * Updates the GxMaster entity based on the response from the GX API.
-     *
-     * @param response The response from the document upload API call.
-     * @param gxMaster The GxMaster entity to update.
      */
-    private void handleApiResponse(final GXUploadDocumentResponse response, final GxMaster gxMaster) {
+    private void updateMasterFromApiResponse(final GXUploadDocumentResponse response, final GxMaster gxMaster) {
         if (response == null) {
             gxMaster.setGxStatus(GxStatus.ERROR);
             gxMaster.setErrorMessage("Received a null response from GX API.");
             return;
         }
 
-        // Check for error messages returned by the API in the message field
-        if (StringUtils.hasText(response.message()) && Objects.isNull(response.ingest())) {
-            gxMaster.setGxStatus(GxStatus.ERROR);
-            gxMaster.setErrorMessage(response.message());
-            log.warn("GX upload failed for document ID {} with message: {}", gxMaster.getId(), response.message());
-        } else if (response.ingest() != null && response.ingest().processId() != null) {
+        if (response.ingest() != null && response.ingest().processId() != null) {
             gxMaster.setGxProcessId(response.ingest().processId());
             gxMaster.setGxStatus(GxStatus.convertByValue(response.ingest().status()));
-            log.info(
-                    "Successfully initiated GX upload for document ID {}. Process ID: {}, Status: {}",
-                    gxMaster.getId(),
-                    gxMaster.getGxProcessId(),
-                    gxMaster.getGxStatus()
-            );
+            log.info("Successfully initiated GX upload for GxMaster ID {}. Process ID: {}, Status: {}",
+                    gxMaster.getId(), gxMaster.getGxProcessId(), gxMaster.getGxStatus());
+        } else if (StringUtils.hasText(response.message())) {
+            gxMaster.setGxStatus(GxStatus.ERROR);
+            gxMaster.setErrorMessage(response.message());
+            log.warn("GX upload failed for GxMaster ID {} with message: {}", gxMaster.getId(), response.message());
         } else {
-            // Handle unexpected response structure
             gxMaster.setGxStatus(GxStatus.ERROR);
             gxMaster.setErrorMessage("Received an invalid or incomplete response from GX API.");
-            log.error("Invalid response from GX for document ID {}: {}", gxMaster.getId(), response);
+            log.error("Invalid response from GX for GxMaster ID {}: {}", gxMaster.getId(), response);
         }
     }
 }

@@ -8,53 +8,51 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * REST controller for handling document upload and processing requests.
+ * Provides REST endpoints for initiating and managing the two-stage document upload process.
  */
-@RestController
-@RequestMapping("/api/documents")
-@RequiredArgsConstructor
 @Slf4j
+@RestController
+@RequestMapping("/api/v1/documents") // Versioned API endpoint
+@RequiredArgsConstructor
 public class DocumentController {
 
     private final JobOrchestrationService jobOrchestrationService;
 
     /**
-     * Stage 1: Creates a new processing job and generates a pre-signed URL for the client to upload a file.
-     * This endpoint supports both single-context and bulk uploads. For a bulk upload, omit the gxBucketId parameter.
+     * **Stage 1:** Creates a new processing job and returns a pre-signed S3 URL.
+     * The client uses this URL to upload the file directly to S3, bypassing the application server.
      *
      * @param fileName      The original name of the file to be uploaded.
-     * @param gxBucketId    An identifier for the client's bucket. (Optional: omitting this designates a bulk upload).
-     * @param skipGxProcess A flag to indicate if a subsequent processing step should be skipped.
-     * @return A response entity containing the unique job ID and the pre-signed S3 URL.
+     * @param gxBucketId    (Optional) An identifier for the client's context bucket. If omitted, the job is treated as a bulk upload.
+     * @param skipGxProcess (Optional) A flag to indicate if the final GroundX processing step should be skipped. Defaults to false.
+     * @return A {@link ResponseEntity} containing the unique job ID and the pre-signed S3 URL.
      */
-    @PostMapping("/generate-upload-url")
+    @PostMapping("/upload-url")
     public ResponseEntity<PresignedUploadResponse> generateUploadUrl(
-            @RequestParam("fileName") String fileName,
-            @RequestParam(value = "gxBucketId", required = false) Integer gxBucketId,
-            @RequestParam(value = "skipGxProcess", defaultValue = "false") boolean skipGxProcess) {
+            @RequestParam("fileName") final String fileName,
+            @RequestParam(value = "gxBucketId", required = false) final Integer gxBucketId,
+            @RequestParam(value = "skipGxProcess", defaultValue = "false") final boolean skipGxProcess) {
 
-        if (gxBucketId == null) {
-            log.info("Received request to generate BULK upload URL for fileName: {}", fileName);
-        } else {
-            log.info("Received request to generate single upload URL for fileName: {}, gxBucketId: {}", fileName, gxBucketId);
-        }
-        PresignedUploadResponse response = jobOrchestrationService.createJobAndPresignedUrl(fileName, gxBucketId, skipGxProcess);
+        log.info("Request received to generate upload URL for file: '{}', gxBucketId: {}",
+                fileName, gxBucketId == null ? "BULK" : gxBucketId);
+
+        final PresignedUploadResponse response = jobOrchestrationService.createJobAndPresignedUrl(fileName, gxBucketId, skipGxProcess);
         log.info("Successfully generated pre-signed URL for new Job ID: {}", response.getJobId());
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Stage 2: Triggered by the client after it has successfully uploaded the file to S3.
-     * This signals the application to begin backend processing.
+     * **Stage 2:** Triggered by the client after it has successfully uploaded the file to S3.
+     * This request signals the application to begin backend processing of the uploaded file.
      *
      * @param jobId The unique ID of the job, returned by the generate-upload-url endpoint.
-     * @return An HTTP 202 Accepted response.
+     * @return An {@link ResponseEntity} with HTTP 202 (Accepted) to indicate the request has been queued.
      */
-    @PostMapping("/trigger-processing/{jobId}")
-    public ResponseEntity<Void> triggerProcessing(@PathVariable Long jobId) {
-        log.info("Received request to trigger processing for Job ID: {}", jobId);
+    @PostMapping("/{jobId}/trigger-processing")
+    public ResponseEntity<Void> triggerProcessing(@PathVariable("jobId") final Long jobId) {
+        log.info("Request received to trigger processing for Job ID: {}", jobId);
         jobOrchestrationService.triggerProcessing(jobId);
-        log.info("Processing trigger for Job ID: {} has been accepted and queued.", jobId);
+        log.info("Processing for Job ID: {} has been accepted and queued.", jobId);
         return ResponseEntity.accepted().build();
     }
 }

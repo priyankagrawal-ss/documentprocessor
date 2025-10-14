@@ -7,9 +7,13 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * Represents the top-level entity for a document processing request.
+ * A job can represent a single file upload or a bulk (ZIP) upload.
+ */
 @Entity
-@Data
 @Table(name = "processing_job")
+@Data
 public class ProcessingJob {
 
     @Id
@@ -39,17 +43,23 @@ public class ProcessingJob {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /**
+     * The GroundX bucket identifier for this job. If null, the job is considered a bulk upload,
+     * where bucket information is derived from the ZIP file's internal structure.
+     */
     @Column
     private Integer gxBucketId;
 
+    /**
+     * A flag indicating whether the final upload to the GroundX service should be skipped.
+     */
     @Column(nullable = false)
     private boolean skipGxProcess = false;
 
     /**
      * A transient helper method to determine if this job is a bulk upload.
-     * A job is considered a bulk upload if no gxBucketId was provided upon creation.
      *
-     * @return true if it is a bulk upload, false otherwise.
+     * @return true if {@code gxBucketId} is null, false otherwise.
      */
     @Transient
     public boolean isBulkUpload() {

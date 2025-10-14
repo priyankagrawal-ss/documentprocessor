@@ -1,55 +1,64 @@
-# Specifies the Docker Compose file format version.
 version: '3.8'
-
-# Defines the services (containers) that make up your application.
 services:
-
-  # 1. The PostgreSQL Database Service
   db:
-    # Use the official PostgreSQL image from Docker Hub.
-    # Pinning to a specific version like '16-alpine' is recommended for stability.
     image: postgres:16-alpine
     container_name: doc-processor-db
-    # Environment variables to configure the PostgreSQL container.
-    # These MUST match the credentials your application will use.
     environment:
       POSTGRES_DB: doc_processor_db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-    # This creates a persistent named volume to store the database data.
-    # Without this, you would lose all your data if the container is removed.
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # Maps port 5432 of the container to port 5432 on the host machine.
-    # This is optional but useful for connecting to the DB with an external tool.
     ports:
       - "5432:5432"
-    # Ensures the database container automatically restarts unless explicitly stopped.
     restart: unless-stopped
-
-  # 2. The Document Processor Application Service
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d doc_processor_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   app:
-    # Tells Docker Compose to build the image from the Dockerfile in the current directory ('.').
     build: .
     container_name: doc-processor-app
-    # Specifies that the 'app' service depends on the 'db' service.
-    # This ensures that the 'db' container is started before the 'app' container.
     depends_on:
-      - db
-    # Maps port 8080 of the container to port 8080 on the host machine.
+      db:
+        condition: service_healthy
     ports:
       - "8080:8080"
-    # Environment variables for the Spring Boot application.
-    # These override the values in 'application.properties'.
     environment:
-      # CRITICAL: The JDBC URL is changed to point to the 'db' service hostname.
-      # Docker Compose creates a network where services can reach each other by their service name.
+      - SPRING_APPLICATION_NAME=DocumentProcessor
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/doc_processor_db
       - SPRING_DATASOURCE_USERNAME=user
       - SPRING_DATASOURCE_PASSWORD=password
-      # Example of setting Java Virtual Machine (JVM) memory options at runtime.
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+      - AWS_REGION=<YOUR_AWS_REGION>
+      - AWS_S3_BUCKET=<YOUR_S3_BUCKET_NAME>
+      - AWS_S3_PRESIGNED_URL_DURATION_MINUTES=15
+      - AWS_ACCESS_KEY=<YOUR_AWS_ACCESS_KEY>
+      - AWS_SECRET_KEY=<YOUR_AWS_SECRET_KEY>
+      - AWS_SQS_ZIP_QUEUE_NAME=<YOUR_ZIP_QUEUE_NAME>
+      - AWS_SQS_FILE_QUEUE_NAME=<YOUR_FILE_QUEUE_NAME>
+      - APP_PROCESSING_MAX_FILE_SIZE=52428800
+      - APP_PROCESSING_MAX_PAGES=100
+      - APP_PROCESSING_PDF_OPTIMIZE=true
+      - APP_PROCESSING_PDF_OPTIMIZER=ghostscript
+      - APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET=/ebook
+      - APP_MONITOR_MAX_CPU_LOAD=90.0
+      - APP_MONITOR_MIN_FREE_MEMORY_MB=512
+      - APP_SCHEDULER_GXDOCUPLOAD=0 */5 * * * *            # Every 5 minutes
+      - APP_SCHEDULER_FETCHDOCUPLOADSTATUS=0 */1 * * * *   # Every minute
+      - APP_SCHEDULER_STALEJOB=0 0 * * * *                 # Every hour
+      - APP_SCHEDULER_JOBCOMPLETIONCHECK=0 */2 * * * *     # Every 2 minutes
+      - APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS=24
+      - APP_GXCLIENT_BASEURL=<YOUR_GX_API_BASE_URL>
+      - APP_GXCLIENT_AUTHKEYNAME=x-api-key
+      - APP_GXCLIENT_AUTHKEYVALUE=<YOUR_GX_API_KEY>
+      - APP_GXCLIENT_ENDPOINT_UPLOADFILE=/ingest/process/url
+      - APP_GXCLIENT_ENDPOINT_FETCHSTATUS=/ingest/process/{processId}
+      - APP_GXCLIENT_ENDPOINT_CREATEBUCKET=/ingest/bucket
+      - APP_GX_MAXPROCESS=10
       - JAVA_OPTS=-Xms256m -Xmx1024m
-    # Restarts the application container if it fails.
     restart: on-failure
 
 # Defines the named volume used by the 'db' service for data persistence.

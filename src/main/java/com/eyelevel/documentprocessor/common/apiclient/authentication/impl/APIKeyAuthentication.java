@@ -7,31 +7,35 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 
 /**
- * Implementation of the {@link Authentication} interface for API key authentication.
- *
- * <p>This class applies API key authentication by adding an API key to the authorization headers.
+ * An implementation of {@link Authentication} that injects a static API key
+ * into request headers. This is a common authentication scheme for securing server-to-server API communication.
  */
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class APIKeyAuthentication implements Authentication {
 
     private final String headerName;
     private final String apiKey;
 
     /**
-     * Applies API key authentication by adding the API key to the authorization map.
+     * Applies the API key to the provided authorization map by adding a header with the
+     * configured name and key.
      *
-     * @param authorization A map containing authorization headers and their values. The API key is
-     *                      added to this map using the specified header name.
+     * @param authorization A non-null map of headers to which the API key will be added.
      */
     @Override
     public void applyAuthentication(Map<String, String> authorization) {
-        log.debug("Applying API key authentication with headerName: {}", headerName);
+        if (authorization == null) {
+            log.error("Authorization map cannot be null when applying API key authentication.");
+            return;
+        }
+
+        log.debug("Applying API key authentication using header: '{}'", headerName);
         try {
             authorization.put(headerName, apiKey);
-            log.trace("Authorization is now: {}", authorization.keySet());
-        } catch (Exception e) {
-            log.error("Error applying API key authentication", e);
+            log.trace("Applied API key to header. Current authorization keys: {}", authorization.keySet());
+        } catch (UnsupportedOperationException e) {
+            log.error("Cannot apply API key authentication. The provided authorization map is immutable.", e);
         }
     }
 }

@@ -9,12 +9,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Component
+/**
+ * A scheduler that cleans up stale jobs that were initiated but never processed.
+ */
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class StaleJobCleanupScheduler {
 
@@ -24,30 +28,32 @@ public class StaleJobCleanupScheduler {
     private long staleThresholdHours;
 
     /**
-     * Periodically runs to find jobs that have been in the PENDING_UPLOAD state for too long.
-     * This cleans up abandoned uploads where the client never triggered the processing.
+     * Periodically finds and marks jobs as FAILED if they have remained in the
+     * {@code PENDING_UPLOAD} state for too long. This handles cases where a client
+     * generates an upload URL but never uploads the file and triggers processing.
      */
-    @Scheduled(cron = "${app.scheduler.stale-job}") // Run at the top of every hour
+    @Scheduled(cron = "${app.scheduler.stale-job}")
     @Transactional
     public void markStaleJobsAsFailed() {
-        LocalDateTime threshold = LocalDateTime.now().minusHours(staleThresholdHours);
-        StaleJobCleanupScheduler.log.info("Running stale job cleanup. Finding jobs in PENDING_UPLOAD created before {}.", threshold);
+        final LocalDateTime threshold = LocalDateTime.now().minusHours(staleThresholdHours);
+        log.info("Running stale job cleanup. Finding jobs in PENDING_UPLOAD created before {}.", threshold);
 
-        List<ProcessingJob> staleJobs = processingJobRepository.findByStatusAndCreatedAtBefore(
+        final List<ProcessingJob> staleJobs = processingJobRepository.findByStatusAndCreatedAtBefore(
                 ProcessingStatus.PENDING_UPLOAD, threshold
         );
 
-        if (staleJobs.isEmpty()) {
-            StaleJobCleanupScheduler.log.info("No stale jobs found.");
+        if (CollectionUtils.isEmpty(staleJobs)) {
+            log.info("No stale jobs found.");
             return;
         }
 
-        for (ProcessingJob job : staleJobs) {
-            StaleJobCleanupScheduler.log.warn("Job ID {} is stale. Marking as FAILED.", job.getId());
+        log.warn("Found {} stale jobs to mark as FAILED.", staleJobs.size());
+        for (final ProcessingJob job : staleJobs) {
             job.setStatus(ProcessingStatus.FAILED);
-            job.setErrorMessage("Upload was not completed and triggered by the client within the " + staleThresholdHours + "-hour time limit.");
+            job.setErrorMessage(String.format(
+                    "Upload was not completed by the client within the %d-hour time limit.", staleThresholdHours));
             processingJobRepository.save(job);
         }
-        StaleJobCleanupScheduler.log.info("Finished stale job cleanup. Marked {} jobs as FAILED.", staleJobs.size());
+        log.info("Finished stale job cleanup. Marked {} jobs as FAILED.", staleJobs.size());
     }
 }

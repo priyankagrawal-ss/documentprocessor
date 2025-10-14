@@ -1,7 +1,8 @@
-package com.eyelevel.documentprocessor.service.handlers;
+package com.eyelevel.documentprocessor.service.handlers.impl;
 
 import com.eyelevel.documentprocessor.model.ExtractedFileItem;
 import com.eyelevel.documentprocessor.model.FileMaster;
+import com.eyelevel.documentprocessor.service.handlers.FileHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;

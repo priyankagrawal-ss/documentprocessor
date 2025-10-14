@@ -22,12 +22,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Service for interacting with the GroundX (GX) API.
+ * A specialized API client for interacting with the GroundX (GX) service.
+ * This client handles document uploads, status checks, and bucket creation.
  */
 @Slf4j
 @Service("gxApiClient")
@@ -36,21 +36,21 @@ public class GXApiClient extends ApiClient {
     private final JsonParser jsonParser;
 
     @Value("${app.gx-client.endpoint.upload-file}")
-    private String uploadDocumentGXEndpoint;
+    private String uploadDocumentEndpoint;
 
     @Value("${app.gx-client.endpoint.fetch-status}")
-    private String fetchUploadDocumentStatusEndpoint;
+    private String fetchStatusEndpoint;
 
     @Value("${app.gx-client.endpoint.create-bucket}")
-    private String createGXBucketEndpoint;
+    private String createBucketEndpoint;
 
     /**
-     * Constructs a new GXApiClient.
+     * Constructs the GXApiClient with all required dependencies.
      *
-     * @param webClient      The WebClient for making HTTP requests.
-     * @param authentication The authentication provider for GX.
-     * @param headerConfig   The header configuration for API requests.
-     * @param jsonParser     The JSON parser for serializing and deserializing objects.
+     * @param webClient      The reactive {@link WebClient} for making HTTP requests.
+     * @param authentication The authentication strategy for signing requests.
+     * @param headerConfig   A configuration object for any additional, static headers.
+     * @param jsonParser     A utility for parsing JSON responses.
      */
     public GXApiClient(
             @Qualifier("gxWebClient") final WebClient webClient,
@@ -63,121 +63,94 @@ public class GXApiClient extends ApiClient {
     }
 
     /**
-     * Uploads a document to GX.
+     * Initiates the upload of a document to GroundX by providing its metadata and source URL.
      *
-     * @param gxDocUploadParams The parameters for the document upload.
-     * @return The response from the upload request.
-     * @throws ApiException            if the API call returns an error.
-     * @throws InternalServerException if an unexpected error occurs during the process.
+     * @param params The parameters required for the document upload.
+     * @return The response from GX, including the process ID for tracking.
+     * @throws ApiException if the API call returns a client or server error.
      */
-    public GXUploadDocumentResponse uploadDocument(final GXDocumentUploadParameters gxDocUploadParams) {
+    public GXUploadDocumentResponse uploadDocument(final GXDocumentUploadParameters params) {
+        log.info("Requesting document upload to GX for file '{}' in bucket {}", params.fileName(), params.bucketId());
         try {
-            final GXUploadFileRequest gxUploadFileRequest = getGxUploadFileRequest(gxDocUploadParams);
-            final ApiRequest apiRequest = prepareUploadDocumentRequest(gxUploadFileRequest);
-            final ApiResponse apiResponse = call(apiRequest);
+            GXUploadFileRequest.DocumentRequest docRequest = new GXUploadFileRequest.DocumentRequest(
+                    params.bucketId(), params.fileName(), params.fileType(), params.sourceUrl()
+            );
+            GXUploadFileRequest payload = new GXUploadFileRequest(Collections.singletonList(docRequest));
 
+            ApiRequest apiRequest = ApiRequest.builder()
+                    .method(HttpMethod.POST)
+                    .path(uploadDocumentEndpoint)
+                    .body(payload)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .acceptMediaType(MediaType.APPLICATION_JSON)
+                    .build();
+
+            ApiResponse apiResponse = call(apiRequest);
             return jsonParser.parseObject(apiResponse.getData(), GXUploadDocumentResponse.class);
 
-        } catch (final ApiException e) {
-            log.warn(
-                    "API error occurred while uploading document '{}' to bucket {}.",
-                    gxDocUploadParams.fileName(),
-                    gxDocUploadParams.bucketId(),
-                    e
-            );
+        } catch (ApiException e) {
+            log.warn("API error during GX document upload for file '{}': {}", params.fileName(), e.getMessage());
             throw e;
-        } catch (final Exception e) {
-            log.error(
-                    "An unexpected error occurred while uploading document '{}' to bucket {}.",
-                    gxDocUploadParams.fileName(),
-                    gxDocUploadParams.bucketId(),
-                    e
-            );
-            throw new InternalServerException("An unexpected error occurred during document upload.");
+        } catch (Exception e) {
+            log.error("An unexpected error occurred while uploading document '{}' to bucket {}.", params.fileName(), params.bucketId(), e);
+            throw new InternalServerException("Unexpected error during document upload to GX.");
         }
     }
 
-    private static GXUploadFileRequest getGxUploadFileRequest(GXDocumentUploadParameters gxDocUploadParams) {
-        final List<GXUploadFileRequest.DocumentRequest> documentRequests = Collections.singletonList(
-                new GXUploadFileRequest.DocumentRequest(
-                        gxDocUploadParams.bucketId(),
-                        gxDocUploadParams.fileName(),
-                        gxDocUploadParams.fileType(),
-                        gxDocUploadParams.sourceUrl()
-                )
-        );
-
-        return new GXUploadFileRequest(documentRequests);
-    }
-
     /**
-     * Creates a new bucket in GX.
+     * Creates a new bucket in GroundX.
      *
-     * @param claimName The name of the claim to create the bucket for.
-     * @return The details of the created bucket.
-     * @throws ApiException            if the API call fails.
-     * @throws InternalServerException if an unexpected error occurs.
+     * @param bucketName The desired name for the new bucket.
+     * @return The details of the newly created {@link GXBucket}.
+     * @throws ApiException if the API call fails.
      */
-    public GXBucket createGXBucket(final String claimName) {
+    public GXBucket createGXBucket(final String bucketName) {
+        log.info("Requesting to create a new GX bucket named '{}'", bucketName);
         try {
-            final ApiRequest apiRequest = prepareCreateBucketRequest(claimName);
-            final ApiResponse apiResponse = call(apiRequest);
+            ApiRequest apiRequest = ApiRequest.builder()
+                    .method(HttpMethod.POST)
+                    .path(createBucketEndpoint)
+                    .body(Map.of("name", bucketName))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .acceptMediaType(MediaType.APPLICATION_JSON)
+                    .build();
+
+            ApiResponse apiResponse = call(apiRequest);
             return jsonParser.parseObject(apiResponse.getData(), GXBucket.class);
-        } catch (final ApiException e) {
-            log.warn("Error while creating bucket for claim name: {} in GroundX API.", claimName, e);
+        } catch (ApiException e) {
+            log.warn("API error while creating GX bucket for name '{}': {}", bucketName, e.getMessage());
             throw e;
-        } catch (final Exception e) {
-            log.error("An unexpected error occurred while creating the bucket for claim: {}.", claimName, e);
-            throw new InternalServerException("An unexpected error occurred while creating the bucket.");
+        } catch (Exception e) {
+            log.error("An unexpected error occurred while creating the GX bucket for name '{}'.", bucketName, e);
+            throw new InternalServerException("Unexpected error during GX bucket creation.");
         }
     }
 
     /**
-     * Fetches the status of a document upload process.
+     * Fetches the current ingestion status of a previously uploaded document.
      *
-     * @param processId The ID of the process to fetch the status for.
-     * @return The ingestion response details.
-     * @throws InternalServerException if an unexpected error occurs.
+     * @param processId The unique identifier of the ingestion process.
+     * @return An {@link IngestResponse} containing the detailed status.
+     * @throws ApiException if the API call fails.
      */
     public IngestResponse fetchUploadDocumentStatus(final UUID processId) {
+        log.info("Fetching GX ingestion status for process ID: {}", processId);
         try {
-            log.info("Fetching status for process id {}", processId);
-            final ApiRequest apiRequest = prepareProcessStatusRequest(processId);
-            final ApiResponse apiResponse = call(apiRequest);
+            ApiRequest apiRequest = ApiRequest.builder()
+                    .method(HttpMethod.GET)
+                    .path(fetchStatusEndpoint)
+                    .pathVariables(Map.of("processId", processId))
+                    .acceptMediaType(MediaType.APPLICATION_JSON)
+                    .build();
+
+            ApiResponse apiResponse = call(apiRequest);
             return jsonParser.parseObject(apiResponse.getData(), IngestResponse.class);
-        } catch (final Exception e) {
-            log.error("An unexpected error occurred while fetching process status for processId {}", processId, e);
-            throw new InternalServerException("An unexpected error occurred while fetching process status from GX.");
+        } catch (ApiException e) {
+            log.warn("API error while fetching status for process ID '{}': {}", processId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("An unexpected error occurred while fetching status for process ID '{}'.", processId, e);
+            throw new InternalServerException("Unexpected error while fetching process status from GX.");
         }
-    }
-
-    private ApiRequest prepareCreateBucketRequest(final String claimName) {
-        return ApiRequest.builder()
-                .method(HttpMethod.POST)
-                .path(createGXBucketEndpoint)
-                .body(Map.of("name", claimName))
-                .contentType(MediaType.APPLICATION_JSON)
-                .acceptMediaType(MediaType.APPLICATION_JSON)
-                .build();
-    }
-
-    private ApiRequest prepareProcessStatusRequest(final UUID processId) {
-        return ApiRequest.builder()
-                .method(HttpMethod.GET)
-                .path(fetchUploadDocumentStatusEndpoint)
-                .pathVariables(Map.of("processId", processId))
-                .contentType(MediaType.APPLICATION_JSON)
-                .acceptMediaType(MediaType.APPLICATION_JSON)
-                .build();
-    }
-
-    private ApiRequest prepareUploadDocumentRequest(final GXUploadFileRequest gxUploadFileRequest) {
-        return ApiRequest.builder()
-                .method(HttpMethod.POST)
-                .path(uploadDocumentGXEndpoint)
-                .body(gxUploadFileRequest)
-                .contentType(MediaType.APPLICATION_JSON)
-                .acceptMediaType(MediaType.APPLICATION_JSON)
-                .build();
     }
 }
