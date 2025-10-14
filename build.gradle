@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.5'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'com.eyelevel.documentprocessor'
+version = '1.0.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+// AWS SDK v2 Bill of Materials (BOM)
+dependencyManagement {
+    imports {
+        mavenBom "software.amazon.awssdk:bom:2.25.33"
+    }
+}
+
+dependencies {
+    // ------------------------------
+    // Spring Boot
+    // ------------------------------
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    // ------------------------------
+    // Environment (.env) support
+    // ------------------------------
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+    // ------------------------------
+    // AWS Integration
+    // ------------------------------
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.1'
+    implementation 'software.amazon.awssdk:s3'
+
+    // ------------------------------
+    // Database
+    // ------------------------------
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // ------------------------------
+    // PDF manipulation
+    // ------------------------------
+    implementation 'org.apache.pdfbox:pdfbox:3.0.2'
+    implementation 'org.xhtmlrenderer:flying-saucer-pdf:9.6.0'
+    implementation 'org.jsoup:jsoup:1.17.2'
+
+    // ------------------------------
+    // MSG / Office file processing
+    // ------------------------------
+    implementation 'org.apache.poi:poi-scratchpad:5.2.5'
+
+    // ------------------------------
+    // Utilities
+    // ------------------------------
+    implementation 'commons-io:commons-io:2.16.1'
+    implementation 'commons-codec:commons-codec:1.16.1'
+
+    // ------------------------------
+    // Lombok
+    // ------------------------------
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // ------------------------------
+    // Testing
+    // ------------------------------
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

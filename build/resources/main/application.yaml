@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+    properties:
+      hibernate:
+        dialect: ${SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT}
+
+app:
+  processing:
+    max-file-size: ${APP_PROCESSING_MAX_FILE_SIZE}
+    max-pages: ${APP_PROCESSING_MAX_PAGES}
+    pdf:
+      optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
+      optimizer: ${APP_PROCESSING_PDF_OPTIMIZER}
+      ghostscript:
+        preset: ${APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET}
+  monitor:
+    max-cpu-load: ${APP_MONITOR_MAX_CPU_LOAD}
+    min-free-memory-mb: ${APP_MONITOR_MIN_FREE_MEMORY_MB}
+  scheduler:
+    gx-doc-upload: ${APP_SCHEDULER_GXDOCUPLOAD}
+    fetch-doc-upload-status: ${APP_SCHEDULER_FETCHDOCUPLOADSTATUS}
+    stale-job: ${APP_SCHEDULER_STALEJOB}
+    stale-job-cleanup-hours: ${APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS}
+  gx-client:
+    baseurl: ${APP_GXCLIENT_BASEURL}
+    auth-key-name: ${APP_GXCLIENT_AUTHKEYNAME}
+    auth-key-value: ${APP_GXCLIENT_AUTHKEYVALUE}
+    endpoint:
+      upload-file: ${APP_GXCLIENT_ENDPOINT_UPLOADFILE}
+      fetch-status: ${APP_GXCLIENT_ENDPOINT_FETCHSTATUS}
+      create-bucket: ${APP_GXCLIENT_ENDPOINT_CREATEBUCKET}
+  gx:
+    max-process: ${APP_GX_MAXPROCESS}
+
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
+    presigned-url-duration-minutes: ${AWS_S3_PRESIGNED_URL_DURATION_MINUTES}
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  sqs:
+    zip-queue-name: ${AWS_SQS_ZIP_QUEUE_NAME}
+    file-queue-name: ${AWS_SQS_FILE_QUEUE_NAME}
+    # endpoint-override: ${AWS_SQS_ENDPOINT_OVERRIDE}

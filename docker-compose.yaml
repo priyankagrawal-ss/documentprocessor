@@ -1,0 +1,58 @@
+# Specifies the Docker Compose file format version.
+version: '3.8'
+
+# Defines the services (containers) that make up your application.
+services:
+
+  # 1. The PostgreSQL Database Service
+  db:
+    # Use the official PostgreSQL image from Docker Hub.
+    # Pinning to a specific version like '16-alpine' is recommended for stability.
+    image: postgres:16-alpine
+    container_name: doc-processor-db
+    # Environment variables to configure the PostgreSQL container.
+    # These MUST match the credentials your application will use.
+    environment:
+      POSTGRES_DB: doc_processor_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    # This creates a persistent named volume to store the database data.
+    # Without this, you would lose all your data if the container is removed.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Maps port 5432 of the container to port 5432 on the host machine.
+    # This is optional but useful for connecting to the DB with an external tool.
+    ports:
+      - "5432:5432"
+    # Ensures the database container automatically restarts unless explicitly stopped.
+    restart: unless-stopped
+
+  # 2. The Document Processor Application Service
+  app:
+    # Tells Docker Compose to build the image from the Dockerfile in the current directory ('.').
+    build: .
+    container_name: doc-processor-app
+    # Specifies that the 'app' service depends on the 'db' service.
+    # This ensures that the 'db' container is started before the 'app' container.
+    depends_on:
+      - db
+    # Maps port 8080 of the container to port 8080 on the host machine.
+    ports:
+      - "8080:8080"
+    # Environment variables for the Spring Boot application.
+    # These override the values in 'application.properties'.
+    environment:
+      # CRITICAL: The JDBC URL is changed to point to the 'db' service hostname.
+      # Docker Compose creates a network where services can reach each other by their service name.
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/doc_processor_db
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password
+      # Example of setting Java Virtual Machine (JVM) memory options at runtime.
+      - JAVA_OPTS=-Xms256m -Xmx1024m
+    # Restarts the application container if it fails.
+    restart: on-failure
+
+# Defines the named volume used by the 'db' service for data persistence.
+volumes:
+  postgres-data:
+    driver: local
