@@ -63,7 +63,7 @@ public class DocumentProcessingConfig {
         /**
          * A flag to enable or disable PDF size optimization via Ghostscript.
          */
-        private boolean optimize = false;
+        private boolean optimize = true;
 
         /**
          * Configuration for the Ghostscript tool used for PDF optimization.

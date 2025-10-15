@@ -78,6 +78,15 @@ public class FileMaster {
      */
     private String fileHash;
 
+
+    /**
+     * The SHA-256 hash of the file's content as it was first extracted.
+     * This hash is immutable and used for reliable duplicate detection, even if the
+     * file is later optimized or transformed, changing its main fileHash.
+     */
+    @Column(updatable = false) // Ensures it's always set and never changed
+    private String originalContentHash;
+
     /**
      * The current processing status of this specific file.
      */

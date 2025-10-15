@@ -110,14 +110,36 @@ public class JobLifecycleManager {
      * @param jobId The ID of the job to mark as complete.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void completeJob(final Long jobId) {
+    public void completeJob(final Long jobId, String remark) {
         processingJobRepository.findById(jobId).ifPresent(job -> {
             if (job.getStatus() != ProcessingStatus.COMPLETED && job.getStatus() != ProcessingStatus.FAILED) {
                 job.setStatus(ProcessingStatus.COMPLETED);
                 job.setCurrentStage("All files processed and uploaded successfully");
                 job.setErrorMessage(null);
+                job.setRemark(remark);
                 processingJobRepository.save(job);
                 log.info("Successfully marked Job ID {} as COMPLETED.", jobId);
+            }
+        });
+    }
+
+    /**
+     * Marks a job as PARTIALLY_SUCCESSFUL. This is used when some files in a multi-file
+     * job succeeded while others failed.
+     *
+     * @param jobId  The ID of the job to update.
+     * @param remark A summary of the partial success (e.g., "5 of 7 files succeeded").
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void partiallyCompleteJob(final Long jobId, final String remark) {
+        processingJobRepository.findById(jobId).ifPresent(job -> {
+            if (job.getStatus() != ProcessingStatus.COMPLETED && job.getStatus() != ProcessingStatus.FAILED) {
+                job.setStatus(ProcessingStatus.PARTIAL_SUCCESS);
+                job.setCurrentStage("Job completed with some file failures");
+                job.setRemark(remark);
+                job.setErrorMessage(null); // Clear any transient error messages
+                processingJobRepository.save(job);
+                log.info("Successfully marked Job ID {} as PARTIAL_SUCCESS. Remark: {}", jobId, remark);
             }
         });
     }

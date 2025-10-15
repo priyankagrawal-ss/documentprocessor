@@ -10,10 +10,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * Represents a file that has been successfully processed and is now being managed by the GroundX (GX) service.
- * This entity tracks the file's status within the external GX system.
- */
 @Entity
 @Table(name = "gx_master")
 @Data
@@ -30,7 +26,8 @@ public class GxMaster {
      * A reference back to the original FileMaster record that was the source for this GX entry.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "source_file_id", nullable = false, unique = true)
+    // The "unique = true" attribute has been removed to allow a one-to-many relationship.
+    @JoinColumn(name = "source_file_id", nullable = false)
     private FileMaster sourceFile;
 
     /**

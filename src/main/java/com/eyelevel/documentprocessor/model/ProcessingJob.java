@@ -55,6 +55,13 @@ public class ProcessingJob {
      */
     @Column(nullable = false)
     private boolean skipGxProcess = false;
+    
+    /**
+     * A field to store a summary message, typically used when a job finishes
+     * with a PARTIAL_SUCCESS status to explain what succeeded and what failed.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String remark;
 
     /**
      * A transient helper method to determine if this job is a bulk upload.

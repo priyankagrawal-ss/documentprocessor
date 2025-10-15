@@ -27,5 +27,6 @@ public enum ProcessingStatus {
     /**
      * An unrecoverable error occurred at some stage of processing, causing the entire job to fail.
      */
-    FAILED
+    FAILED,
+    PARTIAL_SUCCESS
 }

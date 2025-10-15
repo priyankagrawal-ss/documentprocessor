@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Spring Data JPA repository for the {@link ProcessingJob} entity.
@@ -33,5 +34,5 @@ public interface ProcessingJobRepository extends JpaRepository<ProcessingJob, Lo
      * @param statuses A list of statuses to search for (e.g., {@code QUEUED}, {@code PROCESSING}).
      * @return A list of matching {@link ProcessingJob} entities.
      */
-    List<ProcessingJob> findByStatusIn(List<ProcessingStatus> statuses);
+    List<ProcessingJob> findByStatusIn(Set<ProcessingStatus> statuses);
 }
