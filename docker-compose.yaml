@@ -57,7 +57,7 @@ services:
       - APP_GXCLIENT_ENDPOINT_UPLOADFILE=/ingest/process/url
       - APP_GXCLIENT_ENDPOINT_FETCHSTATUS=/ingest/process/{processId}
       - APP_GXCLIENT_ENDPOINT_CREATEBUCKET=/ingest/bucket
-      - APP_GX_MAXPROCESS=10
+      - APP_GX_MAX_CONCURRENT_UPLOADS=10
       - JAVA_OPTS=-Xms256m -Xmx1024m
     restart: on-failure
 

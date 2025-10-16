@@ -90,16 +90,18 @@ public class MsgHandler implements FileHandler {
         return extractedItems;
     }
 
+// In MsgHandler.java
+
     /**
      * Safely extracts and cleans the email body from the MAPIMessage object.
      * It prioritizes the HTML body, falls back to the plain text body,
-     * and sanitizes the content to make it robust against parsing errors.
+     * and produces a well-formed, correctly styled XHTML string suitable for PDF rendering.
      *
      * @param msg The parsed MAPIMessage object.
-     * @return A string containing a well-formed HTML document ready for PDF rendering.
+     * @return A string containing a well-formed XHTML document.
      */
     private String getBodyAsCleanHtml(MAPIMessage msg) {
-        // --- FIX #2: Robustly get each property, providing a default value if it's missing ---
+        // This part of the code is correct and does not need to change.
         String subject = "No Subject";
         try {
             String rawSubject = msg.getSubject();
@@ -132,47 +134,79 @@ public class MsgHandler implements FileHandler {
 
         String bodyContent = "";
         try {
-            // First, try to get the HTML body
+            // First, try to get the rich HTML body
             String rawHtml = msg.getHtmlBody();
             if (rawHtml != null && !rawHtml.isBlank()) {
-                // --- FIX #1: Clean the HTML to prevent XML parsing errors ---
-                String sanitizedHtml = Jsoup.clean(rawHtml, Safelist.relaxed());
+                Safelist safelist = Safelist.relaxed()
+                        .addAttributes(":all", "style", "class", "id")
+                        .addTags("table", "thead", "tbody", "tfoot", "tr", "th", "td", "div", "span")
+                        .addAttributes("table", "summary", "width", "cellpadding", "cellspacing")
+                        .addAttributes("td", "abbr", "axis", "colspan", "rowspan", "width", "valign")
+                        .addAttributes("th", "abbr", "axis", "colspan", "rowspan", "scope", "width", "valign");
+                String sanitizedHtml = Jsoup.clean(rawHtml, safelist);
                 bodyContent = Jsoup.parse(sanitizedHtml).body().html();
             } else {
-                // Fallback to the plain text body if HTML is absent or empty
-                throw new ChunkNotFoundException(); // Jump to the text body catch block
+                // If no HTML body, trigger the fallback to plain text
+                throw new ChunkNotFoundException();
             }
         } catch (ChunkNotFoundException e) {
             log.debug("HTML body not found or empty, attempting to fall back to plain text body.");
             try {
-                String textBody = msg.getTextBody();
-                if (textBody != null && !textBody.isBlank()) {
-                    String plainText = Jsoup.parse(textBody).text();
-                    // Wrap plain text in <pre> to preserve whitespace and line breaks
-                    bodyContent = "<pre>" + plainText.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</pre>";
+                // --- THIS IS THE CRITICAL FIX FOR THE "WALL OF TEXT" PROBLEM ---
+                String plainTextBody = msg.getTextBody();
+                if (plainTextBody != null && !plainTextBody.isBlank()) {
+                    // 1. Get the raw text WITH its original newline characters. DO NOT use Jsoup.text().
+                    // 2. Escape any special HTML characters to prevent breaking the structure.
+                    String escapedText = plainTextBody.replace("&", "&amp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;");
+                    // 3. Wrap the result in a <pre> tag. The newlines are preserved, and the
+                    //    CSS 'white-space: pre-wrap' will handle the formatting.
+                    bodyContent = "<pre>" + escapedText + "</pre>";
+                } else {
+                    return ""; // No body content at all
                 }
+                // --------------------------------------------------------------------
             } catch (ChunkNotFoundException e2) {
                 log.warn("No renderable HTML or text body found in the MSG file.");
-                return ""; // No body content found at all
+                return "";
             }
         }
 
-        // If there's no meaningful content after trying both, return empty.
         if (bodyContent.isBlank()) {
             return "";
         }
 
         String finalHtml = """
-                <html><head><meta charset="UTF-8"><style>body { font-family: sans-serif; }</style></head><body>
-                <h2>%s</h2>
-                <p><b>From:</b> %s</p>
-                <p><b>To:</b> %s</p>
-                <hr/>
-                %s
-                </body></html>
+                <html>
+                  <head>
+                    <meta charset="UTF-8"/>
+                    <style>
+                      body {
+                        font-family: sans-serif;
+                        overflow-wrap: break-word;
+                        word-wrap: break-word;
+                      }
+                      pre {
+                        white-space: pre-wrap; /* Preserves whitespace/newlines AND wraps long lines */
+                        overflow-wrap: break-word;
+                        word-wrap: break-word;
+                        font-family: sans-serif; /* Use the same font as the body */
+                      }
+                    </style>
+                  </head>
+                  <body>
+                    <h2>%s</h2>
+                    <p><b>From:</b> %s</p>
+                    <p><b>To:</b> %s</p>
+                    <hr/>
+                    %s
+                  </body>
+                </html>
                 """.formatted(subject, from, to, bodyContent);
 
         Document finalDoc = Jsoup.parse(finalHtml);
+        finalDoc.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
         return finalDoc.html();
     }
 }

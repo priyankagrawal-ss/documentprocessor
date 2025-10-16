@@ -122,44 +122,62 @@ public class DocumentPipelineService {
     }
 
     /**
-     * Checks for duplicates deterministically WITHIN THE SAME BUCKET to prevent race conditions.
+     * Handles duplicate files within the same bucket, with nuanced logic for reprocessing failures.
      *
-     * @return {@code true} if a duplicate was found and handled, {@code false} otherwise.
+     * @param fileMaster The current file being processed.
+     * @return {@code true} if a duplicate was found and handled (i.e., the file should be skipped),
+     * {@code false} if processing should continue.
      */
     private boolean handleDuplicates(FileMaster fileMaster) {
         final String currentHash = fileMaster.getOriginalContentHash();
         final Integer bucketId = fileMaster.getGxBucketId();
 
-        // 1. First, check for historical duplicates against COMPLETED files in this bucket.
-        List<FileMaster> completedDuplicates = fileMasterRepository.findCompletedDuplicateInBucketByHash(
-                bucketId,
-                currentHash,
-                FileProcessingStatus.COMPLETED);
+        // 1. Use a single query to find all files with the same hash in the same bucket.
+        List<FileMaster> allFilesWithSameHash = fileMasterRepository.findAllByGxBucketIdAndOriginalContentHash(bucketId, currentHash);
 
-        if (!completedDuplicates.isEmpty()) {
-            FileMaster original = completedDuplicates.get(0);
-            log.warn("Bucket-scoped historical duplicate detected for FileMaster ID {}. Original is FileMaster ID {}. Marking as SKIPPED.",
+        // 2. Check for a successfully COMPLETED historical duplicate. This is the highest priority check.
+        Optional<FileMaster> completedDuplicate = allFilesWithSameHash.stream()
+                .filter(fm -> !fm.getId().equals(fileMaster.getId())) // Exclude the current file
+                .filter(fm -> fm.getFileProcessingStatus() == FileProcessingStatus.COMPLETED)
+                .findFirst();
+
+        if (completedDuplicate.isPresent()) {
+            FileMaster original = completedDuplicate.get();
+            log.warn("Bucket-scoped historical duplicate detected for FileMaster ID {}. A COMPLETED version (ID {}) already exists. Marking as SKIPPED.",
                     fileMaster.getId(), original.getId());
             fileMaster.setFileHash(original.getFileHash());
             updateFileStatusToSkipped(fileMaster, original.getId());
-            return true;
+            return true; // <<< SKIP
         }
 
-        // 2. If no historical duplicate, check for concurrent duplicates (race condition) in this bucket.
-        List<FileMaster> potentialDuplicates = fileMasterRepository.findAllByGxBucketIdAndOriginalContentHash(bucketId, currentHash);
+        // 3. Handle concurrent duplicates (race condition).
+        // Find all *active* files (including the current one) to see if there's a race.
+        List<FileMaster> activeDuplicates = allFilesWithSameHash.stream()
+                .filter(fm -> fm.getFileProcessingStatus() == FileProcessingStatus.QUEUED ||
+                              fm.getFileProcessingStatus() == FileProcessingStatus.IN_PROGRESS)
+                .toList();
 
-        long originalId = potentialDuplicates.stream()
-                .mapToLong(FileMaster::getId)
-                .min()
-                .orElse(fileMaster.getId());
+        if (activeDuplicates.size() > 1) {
+            // A race condition is happening. Deterministically pick the one with the lowest ID to proceed.
+            long winningId = activeDuplicates.stream()
+                    .mapToLong(FileMaster::getId)
+                    .min()
+                    .orElse(fileMaster.getId()); // Should never be empty here
 
-        if (fileMaster.getId() != originalId) {
-            log.warn("Bucket-scoped concurrent duplicate detected for FileMaster ID {}. Original is deterministically FileMaster ID {}. Marking as SKIPPED.",
-                    fileMaster.getId(), originalId);
-            updateFileStatusToSkipped(fileMaster, originalId);
-            return true;
+            if (fileMaster.getId() != winningId) {
+                log.warn("Bucket-scoped concurrent duplicate detected for FileMaster ID {}. The winning processor is ID {}. Marking as SKIPPED.",
+                        fileMaster.getId(), winningId);
+                updateFileStatusToSkipped(fileMaster, winningId);
+                return true;
+            }
         }
 
+        // 4. If we reach this point, it means:
+        //    a) No COMPLETED version exists.
+        //    b) Either there's no race condition, or this is the "winning" file in a race.
+        // This means any other duplicates must be in a FAILED, IGNORED, or other non-active state.
+        // Therefore, we should allow this file to be processed.
+        log.info("Duplicate hash found for FileMaster ID {}, but no COMPLETED or active concurrent version exists. Allowing processing.", fileMaster.getId());
         return false;
     }
 

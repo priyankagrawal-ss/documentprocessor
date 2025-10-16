@@ -51,7 +51,7 @@ app:
       fetch-status: ${APP_GXCLIENT_ENDPOINT_FETCHSTATUS}
       create-bucket: ${APP_GXCLIENT_ENDPOINT_CREATEBUCKET}
   gx:
-    max-process: ${APP_GX_MAXPROCESS}
+    max-process: ${APP_GX_MAX_CONCURRENT_UPLOADS}
 
 aws:
   region: ${AWS_REGION}
