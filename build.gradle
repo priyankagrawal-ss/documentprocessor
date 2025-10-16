@@ -31,8 +31,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.retry:spring-retry:2.0.12'
+    implementation 'org.springframework.boot:spring-boot-starter-aop:3.5.6'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
+    
+    implementation 'org.jodconverter:jodconverter-local:4.4.11'
     // ------------------------------
     // Environment (.env) support
     // ------------------------------

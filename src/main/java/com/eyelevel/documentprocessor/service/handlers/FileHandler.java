@@ -2,7 +2,9 @@ package com.eyelevel.documentprocessor.service.handlers;
 
 import com.eyelevel.documentprocessor.model.ExtractedFileItem;
 import com.eyelevel.documentprocessor.model.FileMaster;
+import org.jodconverter.core.office.OfficeException;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
@@ -33,5 +35,5 @@ public interface FileHandler {
      * - If the original file was transformed, the list will contain the single transformed result.
      * - If no transformation or extraction occurred (e.g., a simple optimization), the list will be empty.
      */
-    List<ExtractedFileItem> handle(InputStream inputStream, FileMaster context);
+    List<ExtractedFileItem> handle(InputStream inputStream, FileMaster context) throws IOException, OfficeException;
 }

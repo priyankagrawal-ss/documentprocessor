@@ -18,9 +18,24 @@ app:
     max-pages: ${APP_PROCESSING_MAX_PAGES}
     pdf:
       optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
-      optimizer: ${APP_PROCESSING_PDF_OPTIMIZER}
       ghostscript:
         preset: ${APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET}
+        optimization-timeout-minutes: ${APP_PROCESSING_PDF_GHOSTSCRIPT_OPTIMIZATION_TIMEOUT_MINUTES}
+        retry:
+          attempts: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_ATTEMPTS}
+          delay-seconds: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_DELAY_SECONDS}
+    libreoffice:
+      retry:
+        attempts: ${APP_PROCESSING_LIBREOFFICE_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_LIBREOFFICE_RETRY_DELAY_MS}
+    msg-handler:
+      retry:
+        attempts: ${APP_PROCESSING_MSGHANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_MSGHANDLER_RETRY_DELAY_MS}
+    zip-handler:
+      retry:
+        attempts: ${APP_PROCESSING_ZIPHANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_ZIPHANDLER_RETRY_DELAY_MS}
   scheduler:
     gx-doc-upload: ${APP_SCHEDULER_GXDOCUPLOAD}
     fetch-doc-upload-status: ${APP_SCHEDULER_FETCHDOCUPLOADSTATUS}

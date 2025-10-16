@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.jodconverter.core.office.OfficeException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -162,7 +163,7 @@ public class DocumentPipelineService {
         return false;
     }
 
-    private List<ExtractedFileItem> findAndExecuteHandler(FileMaster fileMaster, Path tempFile) throws IOException {
+    private List<ExtractedFileItem> findAndExecuteHandler(FileMaster fileMaster, Path tempFile) throws IOException, OfficeException {
         final Optional<FileHandler> handlerOpt = fileHandlerFactory.getHandler(fileMaster.getExtension());
 
         if (handlerOpt.isEmpty()) {

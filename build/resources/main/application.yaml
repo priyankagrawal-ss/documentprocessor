@@ -18,17 +18,30 @@ app:
     max-pages: ${APP_PROCESSING_MAX_PAGES}
     pdf:
       optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
-      optimizer: ${APP_PROCESSING_PDF_OPTIMIZER}
       ghostscript:
         preset: ${APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET}
-  monitor:
-    max-cpu-load: ${APP_MONITOR_MAX_CPU_LOAD}
-    min-free-memory-mb: ${APP_MONITOR_MIN_FREE_MEMORY_MB}
+        optimization-timeout-minutes: ${APP_PROCESSING_PDF_GHOSTSCRIPT_OPTIMIZATION_TIMEOUT_MINUTES}
+        retry:
+          attempts: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_ATTEMPTS}
+          delay-seconds: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_DELAY_SECONDS}
+    libreoffice:
+      retry:
+        attempts: ${APP_PROCESSING_LIBREOFFICE_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_LIBREOFFICE_RETRY_DELAY_MS}
+    msg-handler:
+      retry:
+        attempts: ${APP_PROCESSING_MSGHANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_MSGHANDLER_RETRY_DELAY_MS}
+    zip-handler:
+      retry:
+        attempts: ${APP_PROCESSING_ZIPHANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_ZIPHANDLER_RETRY_DELAY_MS}
   scheduler:
     gx-doc-upload: ${APP_SCHEDULER_GXDOCUPLOAD}
     fetch-doc-upload-status: ${APP_SCHEDULER_FETCHDOCUPLOADSTATUS}
     stale-job: ${APP_SCHEDULER_STALEJOB}
     stale-job-cleanup-hours: ${APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS}
+    job-completion-check: ${APP_SCHEDULER_JOBCOMPLETIONCHECK}
   gx-client:
     baseurl: ${APP_GXCLIENT_BASEURL}
     auth-key-name: ${APP_GXCLIENT_AUTHKEYNAME}
@@ -50,4 +63,3 @@ aws:
   sqs:
     zip-queue-name: ${AWS_SQS_ZIP_QUEUE_NAME}
     file-queue-name: ${AWS_SQS_FILE_QUEUE_NAME}
-    # endpoint-override: ${AWS_SQS_ENDPOINT_OVERRIDE}
