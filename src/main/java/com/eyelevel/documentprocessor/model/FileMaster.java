@@ -100,6 +100,10 @@ public class FileMaster {
     @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private SourceType sourceType;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

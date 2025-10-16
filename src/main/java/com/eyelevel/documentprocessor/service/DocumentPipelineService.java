@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.util.CollectionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.util.*;
 
 /**
  * Core service that orchestrates the multi-step processing pipeline for a single file.
- * This includes validation, duplicate checking, content handling (conversion/extraction),
+ * This includes validation, bucket-scoped duplicate checking, content handling,
  * and preparation for the final upload step.
  */
 @Slf4j
@@ -61,24 +60,26 @@ public class DocumentPipelineService {
             tempFile = Files.createTempFile("pipeline-" + fileMasterId + "-", "-" + fileMaster.getFileName());
 
             if (!prepareAndValidateFile(fileMaster, tempFile)) {
-                return; // Stop if validation failed.
+                return;
             }
 
             if (handleDuplicates(fileMaster)) {
-                return; // Stop if the file is a duplicate.
+                return;
             }
 
             List<ExtractedFileItem> newItems = findAndExecuteHandler(fileMaster, tempFile);
 
-            // If newItems is null, it means the file type was unsupported and already handled. Stop.
-            if (CollectionUtils.isEmpty(newItems)) {
+            if (newItems == null) {
                 return;
             }
 
-            processHandlerResults(newItems, fileMaster);
+            if (newItems.isEmpty()) {
+                createOrUpdateGxMasterRecord(fileMaster, null);
+            } else {
+                processHandlerResults(newItems, fileMaster);
+            }
 
-            // Only mark as COMPLETED if it wasn't already set to a different terminal state.
-            if (fileMaster.getFileProcessingStatus() == FileProcessingStatus.IN_PROGRESS || fileMaster.getFileProcessingStatus() == FileProcessingStatus.QUEUED) {
+            if (Arrays.asList(FileProcessingStatus.IN_PROGRESS, FileProcessingStatus.QUEUED).contains(fileMaster.getFileProcessingStatus())) {
                 fileMaster.setFileProcessingStatus(FileProcessingStatus.COMPLETED);
                 log.info("Pipeline completed successfully for FileMaster ID: {}.", fileMasterId);
             }
@@ -120,31 +121,44 @@ public class DocumentPipelineService {
     }
 
     /**
-     * Checks for duplicates by comparing the new file's hash against both original and final
-     * hashes of previously completed files.
+     * Checks for duplicates deterministically WITHIN THE SAME BUCKET to prevent race conditions.
      *
      * @return {@code true} if a duplicate was found and handled, {@code false} otherwise.
      */
     private boolean handleDuplicates(FileMaster fileMaster) {
         final String currentHash = fileMaster.getOriginalContentHash();
+        final Integer bucketId = fileMaster.getGxBucketId();
 
-        final List<FileMaster> duplicates = fileMasterRepository.findCompletedDuplicateByHash(
-                fileMaster.getGxBucketId(),
+        // 1. First, check for historical duplicates against COMPLETED files in this bucket.
+        List<FileMaster> completedDuplicates = fileMasterRepository.findCompletedDuplicateInBucketByHash(
+                bucketId,
                 currentHash,
                 FileProcessingStatus.COMPLETED);
 
-        Optional<FileMaster> firstDuplicate = duplicates.stream()
-                .filter(fm -> !fm.getId().equals(fileMaster.getId()))
-                .findFirst();
-
-        if (firstDuplicate.isPresent()) {
-            FileMaster original = firstDuplicate.get();
-            log.warn("Duplicate content detected for FileMaster ID {}. The original is FileMaster ID {}. Marking as SKIPPED_DUPLICATE.",
+        if (!completedDuplicates.isEmpty()) {
+            FileMaster original = completedDuplicates.get(0);
+            log.warn("Bucket-scoped historical duplicate detected for FileMaster ID {}. Original is FileMaster ID {}. Marking as SKIPPED.",
                     fileMaster.getId(), original.getId());
             fileMaster.setFileHash(original.getFileHash());
             updateFileStatusToSkipped(fileMaster, original.getId());
             return true;
         }
+
+        // 2. If no historical duplicate, check for concurrent duplicates (race condition) in this bucket.
+        List<FileMaster> potentialDuplicates = fileMasterRepository.findAllByGxBucketIdAndOriginalContentHash(bucketId, currentHash);
+
+        long originalId = potentialDuplicates.stream()
+                .mapToLong(FileMaster::getId)
+                .min()
+                .orElse(fileMaster.getId());
+
+        if (fileMaster.getId() != originalId) {
+            log.warn("Bucket-scoped concurrent duplicate detected for FileMaster ID {}. Original is deterministically FileMaster ID {}. Marking as SKIPPED.",
+                    fileMaster.getId(), originalId);
+            updateFileStatusToSkipped(fileMaster, originalId);
+            return true;
+        }
+
         return false;
     }
 
@@ -155,7 +169,7 @@ public class DocumentPipelineService {
             String errorMessage = "File type '%s' is not supported.".formatted(fileMaster.getExtension());
             log.warn("[IGNORED] FileMaster ID {} will be ignored. Reason: {}", fileMaster.getId(), errorMessage);
             updateFileStatusToIgnored(fileMaster, errorMessage, fileMaster.getFileSize());
-            return Collections.emptyList();
+            return null;
         }
 
         final FileHandler handler = handlerOpt.get();
@@ -163,23 +177,90 @@ public class DocumentPipelineService {
         return handler.handle(Files.newInputStream(tempFile), fileMaster);
     }
 
+    /**
+     * Processes the results from a FileHandler, diversifying logic based on the number
+     * and type of items returned. This version correctly handles transformations by creating
+     * a new FileMaster record.
+     */
     private void processHandlerResults(List<ExtractedFileItem> newItems, FileMaster fileMaster) {
+        // Case 1: Handler did nothing or was a terminal transformer that didn't change content.
         if (newItems.isEmpty()) {
             createOrUpdateGxMasterRecord(fileMaster, null);
-        } else if (newItems.size() == 1 && newItems.getFirst().getFilename().equals(fileMaster.getFileName())) {
-            final ExtractedFileItem transformedItem = newItems.getFirst();
+        }
+        // Case 2: Handler optimized the file in-place.
+        else if (newItems.size() == 1 && newItems.get(0).getFilename().equals(fileMaster.getFileName())) {
+            final ExtractedFileItem transformedItem = newItems.get(0);
             final String newHash = DigestUtils.sha256Hex(transformedItem.getContent());
-            log.info("File content was transformed. Updating hash for FileMaster ID {} to {}.", fileMaster.getId(), newHash);
-            fileMaster.setFileHash(newHash);
+            if (!newHash.equals(fileMaster.getFileHash())) {
+                log.info("File content was optimized. Updating hash for FileMaster ID {}.", fileMaster.getId());
+                fileMaster.setFileHash(newHash);
+            }
             createOrUpdateGxMasterRecord(fileMaster, transformedItem);
-        } else if (newItems.size() > 1 && fileMaster.getExtension().equalsIgnoreCase("pdf")) {
-            log.info("PDF handler split FileMaster ID {} into {} parts. Creating a GxMaster record for each part.", fileMaster.getId(), newItems.size());
-            newItems.forEach(item -> createGxMasterForSplitPart(fileMaster, item));
-        } else {
+        }
+        // Case 3 (OPTIMIZATION): Handler split the file into multiple parts.
+        // Bypasses the FileMaster queue and creates GxMaster records directly.
+        else if (newItems.size() > 1 && fileMaster.getExtension().equalsIgnoreCase("pdf")) {
+            log.info("PDF handler split FileMaster ID {} into {} parts. Creating GxMaster records directly.", newItems.size(), fileMaster.getId());
             for (final ExtractedFileItem item : newItems) {
-                createFileMasterFromExtractedItem(item, fileMaster.getProcessingJob());
+                createGxMasterForSplitPart(fileMaster, item);
             }
         }
+        // Case 4: Handler transformed or extracted one or more new files.
+        else {
+            SourceType sourceType = (newItems.size() == 1) ? SourceType.TRANSFORMED : SourceType.EXTRACTED;
+            log.info("Handler produced {} new items from FileMaster ID {}. Creating a FileMaster for each.", newItems.size(), fileMaster.getId());
+            for (final ExtractedFileItem item : newItems) {
+                createFileMasterFromExtractedItem(item, fileMaster.getProcessingJob(), sourceType);
+            }
+        }
+    }
+
+    /**
+     * Creates a new {@link GxMaster} record for a split part of a larger source file.
+     * This method bypasses the FileMaster queue, uploads the content directly, and creates
+     * a GxMaster record linked back to the original source file, enabling a one-to-many relationship.
+     *
+     * @param sourceFile The original FileMaster that was the source of the split.
+     * @param splitPart  The content and filename of the individual part.
+     */
+    private void createGxMasterForSplitPart(final FileMaster sourceFile, final ExtractedFileItem splitPart) {
+        final byte[] content = splitPart.getContent();
+        final long finalSize = content.length;
+        final String processedFileName = splitPart.getFilename();
+        final ProcessingJob parentJob = sourceFile.getProcessingJob();
+
+        // 1. Upload the content of the split part to the main 'files' S3 location.
+        final String s3Key = S3StorageService.constructS3Key(
+                processedFileName, sourceFile.getGxBucketId(),
+                parentJob.getId(), "files");
+        s3StorageService.upload(s3Key, new ByteArrayInputStream(content), finalSize);
+        log.debug("Uploaded split part '{}' for source FileMaster ID {} to S3 key: {}",
+                processedFileName, sourceFile.getId(), s3Key);
+
+        // 2. Determine the final status based on the job's settings.
+        final boolean isSkipped = parentJob.isSkipGxProcess();
+        final GxStatus targetStatus = isSkipped ? GxStatus.SKIPPED : GxStatus.QUEUED_FOR_UPLOAD;
+        final UUID processId = isSkipped ? NIL_UUID : null;
+
+        // 3. Copy the file to the final 'gx-files' location, which is the source for GX ingestion.
+        final String gxFilesS3Key = s3StorageService.copyToGxFiles(s3Key, processedFileName,
+                sourceFile.getGxBucketId(), parentJob.getId());
+
+        // 4. Build and save the new GxMaster record for this specific part.
+        final GxMaster newGxRecord = GxMaster.builder()
+                .sourceFile(sourceFile) // IMPORTANT: This links back to the original source file.
+                .gxBucketId(sourceFile.getGxBucketId())
+                .fileLocation(gxFilesS3Key)
+                .processedFileName(processedFileName)
+                .fileSize(finalSize)
+                .extension(FilenameUtils.getExtension(processedFileName).toLowerCase())
+                .gxStatus(targetStatus)
+                .gxProcessId(processId)
+                .build();
+        gxMasterRepository.save(newGxRecord);
+
+        log.info("Successfully created GxMaster ID: {} for split part '{}' from source FileMaster ID: {}",
+                newGxRecord.getId(), processedFileName, sourceFile.getId());
     }
 
     private void updateFileStatusToIgnored(final FileMaster fileMaster, final String reason, final long fileSize) {
@@ -247,49 +328,27 @@ public class DocumentPipelineService {
         }
     }
 
-    private void createGxMasterForSplitPart(final FileMaster sourceFile, final ExtractedFileItem splitPart) {
-        final byte[] content = splitPart.getContent();
-        final long finalSize = content.length;
-        final String processedFileName = splitPart.getFilename();
-
-        final String s3Key = S3StorageService.constructS3Key(
-                processedFileName, sourceFile.getGxBucketId(),
-                sourceFile.getProcessingJob().getId(), "files");
-        s3StorageService.upload(s3Key, new ByteArrayInputStream(content), finalSize);
-
-        final boolean isSkipped = sourceFile.getProcessingJob().isSkipGxProcess();
-        final GxStatus targetStatus = isSkipped ? GxStatus.SKIPPED : GxStatus.QUEUED_FOR_UPLOAD;
-        final UUID processId = isSkipped ? NIL_UUID : null;
-
-        final String gxFilesS3Key = s3StorageService.copyToGxFiles(s3Key, processedFileName,
-                sourceFile.getGxBucketId(), sourceFile.getProcessingJob().getId());
-
-        final GxMaster newGxRecord = GxMaster.builder()
-                .sourceFile(sourceFile)
-                .gxBucketId(sourceFile.getGxBucketId())
-                .fileLocation(gxFilesS3Key)
-                .processedFileName(processedFileName)
-                .fileSize(finalSize)
-                .extension(FilenameUtils.getExtension(processedFileName).toLowerCase())
-                .gxStatus(targetStatus)
-                .gxProcessId(processId)
-                .build();
-        gxMasterRepository.save(newGxRecord);
-    }
-
-    private void createFileMasterFromExtractedItem(final ExtractedFileItem item, final ProcessingJob parentJob) {
+    /**
+     * Creates a new {@link FileMaster} record for an item that was generated by the system,
+     * either through extraction or transformation.
+     *
+     * @param item       The content and filename of the new item.
+     * @param parentJob  The parent ProcessingJob.
+     * @param sourceType The origin of this new file (EXTRACTED or TRANSFORMED).
+     */
+    private void createFileMasterFromExtractedItem(final ExtractedFileItem item, final ProcessingJob parentJob, final SourceType sourceType) {
         final byte[] content = item.getContent();
         final String initialHash = DigestUtils.sha256Hex(content);
         final Integer gxBucketId = parentJob.getGxBucketId();
 
-        final List<FileMaster> duplicates = fileMasterRepository.findCompletedDuplicateByHash(
+        final List<FileMaster> duplicates = fileMasterRepository.findCompletedDuplicateInBucketByHash(
                 gxBucketId,
                 initialHash,
                 FileProcessingStatus.COMPLETED);
 
         if (!duplicates.isEmpty()) {
-            log.warn("Duplicate content detected for extracted item '{}'. It matches existing FileMaster ID {}. Skipping creation.",
-                    item.getFilename(), duplicates.getFirst().getId());
+            log.warn("Bucket-scoped duplicate content detected for system-generated item '{}'. It matches existing FileMaster ID {}. Skipping creation.",
+                    item.getFilename(), duplicates.get(0).getId());
             return;
         }
 
@@ -305,10 +364,11 @@ public class DocumentPipelineService {
                 .fileHash(initialHash)
                 .originalContentHash(initialHash)
                 .fileLocation(newS3Key)
+                .sourceType(sourceType) // Set the correct source type
                 .fileProcessingStatus(FileProcessingStatus.QUEUED)
                 .build();
         fileMasterRepository.save(newFileMaster);
-        log.info("Created new FileMaster ID: {} for extracted item '{}'.", newFileMaster.getId(), item.getFilename());
+        log.info("Created new {} FileMaster ID: {} for item '{}'.", sourceType, newFileMaster.getId(), item.getFilename());
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override

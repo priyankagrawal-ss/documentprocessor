@@ -154,6 +154,7 @@ public class JobOrchestrationService {
                 .fileName(job.getOriginalFilename())
                 .extension(FilenameUtils.getExtension(job.getOriginalFilename()).toLowerCase())
                 .fileProcessingStatus(FileProcessingStatus.QUEUED)
+                .sourceType(SourceType.UPLOADED)
                 .build();
         fileMasterRepository.save(fileMaster);
         log.info("Created FileMaster ID: {} for Job ID: {}", fileMaster.getId(), job.getId());

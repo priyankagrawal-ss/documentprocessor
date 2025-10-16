@@ -37,32 +37,28 @@ public interface FileMasterRepository extends JpaRepository<FileMaster, Long> {
     List<FileMaster> findAllByProcessingJobId(Long jobId);
 
     /**
-     * Finds the first completed FileMaster that matches a given bucket and ORIGINAL content hash.
-     * This is the definitive method for duplicate detection, as it's immune to changes
-     * from file optimization.
+     * Finds ALL FileMaster records within a specific bucket that match a given original content hash,
+     * regardless of their processing status. This is the key to solving the race condition.
      *
-     * @param gxBucketId          The bucket ID.
-     * @param originalContentHash The immutable hash of the original file content.
-     * @param status              The status to check against (typically COMPLETED).
-     * @return An Optional containing the duplicate FileMaster, if found.
+     * @param gxBucketId          The bucket ID to search within.
+     * @param originalContentHash The immutable hash to check.
+     * @return A list of all matching files in the specified bucket.
      */
-    Optional<FileMaster> findFirstByGxBucketIdAndOriginalContentHashAndFileProcessingStatus(
-            Integer gxBucketId, String originalContentHash, FileProcessingStatus status
-    );
+    List<FileMaster> findAllByGxBucketIdAndOriginalContentHash(Integer gxBucketId, String originalContentHash);
 
     /**
-     * Finds a completed duplicate by checking a hash against both the original and final
-     * content hashes of existing records. This is the definitive duplicate check.
+     * Finds any completed duplicate within a specific bucket by checking a hash against
+     * both the original and final content hashes of existing records.
      *
      * @param gxBucketId The bucket ID to search within.
      * @param hash       The hash of the new file to check.
      * @param status     The status to filter by (e.g., COMPLETED).
-     * @return A list of matching duplicates, ordered by ID.
+     * @return A list of matching duplicates, ordered by ID to ensure deterministic selection.
      */
     @Query("SELECT fm FROM FileMaster fm WHERE fm.gxBucketId = :gxBucketId AND fm.fileProcessingStatus = :status " +
            "AND (fm.originalContentHash = :hash OR fm.fileHash = :hash) " +
            "ORDER BY fm.id ASC")
-    List<FileMaster> findCompletedDuplicateByHash(
+    List<FileMaster> findCompletedDuplicateInBucketByHash(
             @Param("gxBucketId") Integer gxBucketId,
             @Param("hash") String hash,
             @Param("status") FileProcessingStatus status

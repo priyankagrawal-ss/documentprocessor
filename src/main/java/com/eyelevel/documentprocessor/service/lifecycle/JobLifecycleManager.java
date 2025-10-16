@@ -26,7 +26,7 @@ public class JobLifecycleManager {
     private final ProcessingJobRepository processingJobRepository;
     private final ZipMasterRepository zipMasterRepository;
     private final FileMasterRepository fileMasterRepository;
-
+    
     /**
      * Marks a job as FAILED due to a terminal error during the ZIP extraction phase.
      *

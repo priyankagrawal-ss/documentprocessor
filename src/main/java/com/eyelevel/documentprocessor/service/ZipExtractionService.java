@@ -230,6 +230,7 @@ public class ZipExtractionService {
                     .fileName(fileName).fileSize(fileSize)
                     .extension(FilenameUtils.getExtension(fileName).toLowerCase())
                     .fileProcessingStatus(FileProcessingStatus.IGNORED)
+                    .sourceType(SourceType.UPLOADED)
                     .zipMaster(zipMaster)
                     .errorMessage(validationError).fileLocation("N/A - IGNORED").build();
             fileMasterRepository.save(ignoredFile);
@@ -246,6 +247,7 @@ public class ZipExtractionService {
                     .zipMaster(zipMaster)
                     .extension(FilenameUtils.getExtension(fileName).toLowerCase())
                     .fileHash(fileHash)
+                    .sourceType(SourceType.UPLOADED)
                     .fileProcessingStatus(FileProcessingStatus.SKIPPED_DUPLICATE)
                     .duplicateOfFileId(completedDuplicate.get().getId())
                     .fileLocation("N/A - DUPLICATE").build();
@@ -263,6 +265,7 @@ public class ZipExtractionService {
                 .fileHash(fileHash)
                 .originalContentHash(fileHash)
                 .fileLocation(newS3Key)
+                .sourceType(SourceType.UPLOADED)
                 .zipMaster(zipMaster)
                 .fileProcessingStatus(FileProcessingStatus.QUEUED).build();
         fileMasterRepository.save(newFileMaster);
