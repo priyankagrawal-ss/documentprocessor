@@ -2,7 +2,6 @@ package com.eyelevel.documentprocessor.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.Set;
 
@@ -11,7 +10,6 @@ import java.util.Set;
  * configuration object. This provides centralized control over file processing behaviors.
  */
 @Data
-@Configuration
 @ConfigurationProperties(prefix = "app.processing")
 public class DocumentProcessingConfig {
 
