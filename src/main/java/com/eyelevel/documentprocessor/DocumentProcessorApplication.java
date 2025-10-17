@@ -49,18 +49,13 @@ public class DocumentProcessorApplication {
         final ConfigurableApplicationContext context = SpringApplication.run(DocumentProcessorApplication.class, args);
         final Environment env = context.getEnvironment();
 
-        log.info("""
-                        ------------------------------------------------------------------
-                          Application '{}' is now running!
-                          Access URLs:
-                             - Local:      http://localhost:{}
-                             - Profile(s): {}
-                        ------------------------------------------------------------------
-                        """,
-                env.getProperty("spring.application.name", "DocumentProcessor"),
-                env.getProperty("server.port", "8080"),
-                String.join(", ", env.getActiveProfiles().length > 0
-                        ? env.getActiveProfiles()
-                        : new String[]{"default"}));
+        log.info("------------------------------------------------------------------");
+        log.info("Application '{}' is now running!", env.getProperty("spring.application.name", "DocumentProcessor"));
+        log.info("Access URLs:");
+        log.info("  - Local:      http://localhost:{}", env.getProperty("server.port", "8080"));
+        log.info("  - Profile(s): {}", String.join(", ", env.getActiveProfiles().length > 0
+                ? env.getActiveProfiles()
+                : new String[]{"default"}));
+        log.info("------------------------------------------------------------------");
     }
 }
