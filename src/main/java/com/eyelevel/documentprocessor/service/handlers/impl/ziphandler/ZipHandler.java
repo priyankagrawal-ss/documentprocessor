@@ -13,35 +13,34 @@ import java.io.InputStream;
 import java.util.List;
 
 /**
- * A file handler that processes ZIP archives by extracting all contained files.
+ * An implementation of {@link FileHandler} that processes ZIP archives by extracting all
+ * contained files for further pipeline processing.
  */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class ZipHandler implements FileHandler {
 
-    /**
-     * {@inheritDoc}
-     */
-    private final ZipExtractorService zipExtractorService;
+    private final ZipContentExtractor zipContentExtractor;
 
     @Override
     public boolean supports(String extension) {
         return "zip".equalsIgnoreCase(extension);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<ExtractedFileItem> handle(InputStream inputStream, FileMaster context) throws IOException, FileConversionException {
-        long jobId = context.getProcessingJob().getId();
-        long fileMasterId = context.getId();
-        String contextInfo = String.format("JobId: %d, FileMasterId: %d", jobId, fileMasterId);
-        log.info("[{}] Starting ZIP file unpacking for '{}'.", contextInfo, context.getFileName());
+        String contextInfo = String.format("JobId: %d, FileMasterId: %d",
+                context.getProcessingJob().getId(), context.getId());
+        log.info("[{}] ZipHandler processing file '{}'", contextInfo, context.getFileName());
 
-        // --- DELEGATE THE ENTIRE EXTRACTION LOGIC ---
-        // The retry logic is now handled automatically by Spring.
-        List<ExtractedFileItem> extractedItems = zipExtractorService.extract(inputStream, contextInfo);
+        List<ExtractedFileItem> extractedItems = zipContentExtractor.extract(inputStream, contextInfo);
 
-        log.info("[{}] Finished unpacking ZIP file. Extracted {} items.", contextInfo, extractedItems.size());
+        log.info("[{}] ZipHandler finished unpacking '{}'. Extracted {} item(s).",
+                contextInfo, context.getFileName(), extractedItems.size());
         return extractedItems;
     }
 }

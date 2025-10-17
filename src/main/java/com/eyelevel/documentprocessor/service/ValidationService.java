@@ -1,5 +1,9 @@
 package com.eyelevel.documentprocessor.service;
 
+// Import the FileHandlerFactory
+
+import com.eyelevel.documentprocessor.service.handlers.factory.FileHandlerFactory;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
@@ -10,7 +14,11 @@ import org.springframework.util.StringUtils;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor // Use Lombok to create the constructor
 public class ValidationService {
+
+    // Inject the FileHandlerFactory
+    private final FileHandlerFactory fileHandlerFactory;
 
     /**
      * Performs a series of pre-flight checks on a file's name and size to determine if it is
@@ -39,5 +47,22 @@ public class ValidationService {
 
         log.trace("File '{}' passed all validation checks.", fileName);
         return null;
+    }
+
+    /**
+     * Checks if a given file extension is supported by the document processing pipeline.
+     *
+     * @param extension The file extension (e.g., "pdf", "docx") without the leading dot.
+     * @return {@code true} if a handler exists for this file type, {@code false} otherwise.
+     */
+    public boolean isFileTypeSupported(final String extension) {
+        if (!StringUtils.hasText(extension)) {
+            // A file without an extension is considered unsupported.
+            return false;
+        }
+        // The file type is supported if the factory can provide a handler for it.
+        boolean isSupported = fileHandlerFactory.getHandler(extension).isPresent();
+        log.trace("Checking support for extension '{}': {}", extension, isSupported);
+        return isSupported;
     }
 }

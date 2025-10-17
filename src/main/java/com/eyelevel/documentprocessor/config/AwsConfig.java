@@ -4,20 +4,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
-import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder;
-
-import java.net.URI;
-import java.util.Optional;
 
 /**
- * Configures and provides the necessary AWS SDK v2 client beans for S3 and SQS.
- * This configuration uses static credentials provided via application properties.
+ * Configures and provides AWS SDK client beans for S3 and SQS.
+ * This configuration dynamically selects the credential strategy based on the active Spring profile.
+ * - For the 'local' profile, it uses static access/secret keys.
+ * - For all other profiles, it uses the DefaultCredentialsProvider (for IAM roles).
  */
 @Slf4j
 @Configuration
@@ -26,62 +29,75 @@ public class AwsConfig {
     @Value("${aws.region}")
     private String awsRegion;
 
-    @Value("${aws.access-key}")
+    @Value("${aws.access-key:}")
     private String accessKey;
 
-    @Value("${aws.secret-key}")
+    @Value("${aws.secret-key:}")
     private String secretKey;
 
-    @Value("${aws.sqs.endpoint-override:#{null}}")
-    private Optional<String> sqsEndpointOverride;
+    /**
+     * The Factory Bean for AWS Credentials.
+     * This bean determines which credentials provider to use based on the active Spring profile.
+     *
+     * @param environment The Spring application environment.
+     * @return The configured {@link AwsCredentialsProvider}.
+     */
+    @Bean
+    public AwsCredentialsProvider awsCredentialsProvider(Environment environment) {
+        if (environment.acceptsProfiles(Profiles.of("local"))) {
+            log.info("Local profile active. Using StaticCredentialsProvider.");
+            if (!StringUtils.hasText(accessKey) || !StringUtils.hasText(secretKey)) {
+                throw new IllegalArgumentException("aws.access-key and aws.secret-key must be set for the 'local' profile.");
+            }
+            return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
+        } else {
+            log.info("Non-local profile active. Using DefaultCredentialsProvider (for IAM role).");
+            return DefaultCredentialsProvider.create();
+        }
+    }
 
     /**
-     * Creates the primary synchronous client for interacting with AWS S3.
+     * Creates the S3 client, injecting the dynamically chosen credentials' provider.
      *
+     * @param credentialsProvider The strategy bean providing AWS credentials.
      * @return A configured {@link S3Client} instance.
      */
     @Bean
-    public S3Client s3Client() {
+    public S3Client s3Client(AwsCredentialsProvider credentialsProvider) {
         log.info("Configuring AWS S3Client for region: {}", awsRegion);
         return S3Client.builder()
                 .region(Region.of(awsRegion))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 
     /**
-     * Creates a dedicated client for generating pre-signed URLs for S3 objects.
+     * Creates the S3 presigner, injecting the dynamically chosen credentials' provider.
      *
+     * @param credentialsProvider The strategy bean providing AWS credentials.
      * @return A configured {@link S3Presigner} instance.
      */
     @Bean
-    public S3Presigner s3Presigner() {
+    public S3Presigner s3Presigner(AwsCredentialsProvider credentialsProvider) {
         log.info("Configuring AWS S3Presigner for region: {}", awsRegion);
         return S3Presigner.builder()
                 .region(Region.of(awsRegion))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 
     /**
-     * Creates the primary asynchronous client for interacting with AWS SQS.
-     * This bean supports an optional endpoint override, which is useful for connecting
-     * to local development environments like LocalStack.
+     * Creates the SQS async client, injecting the dynamically chosen credentials' provider.
      *
+     * @param credentialsProvider The strategy bean providing AWS credentials.
      * @return A configured {@link SqsAsyncClient} instance.
      */
     @Bean
-    public SqsAsyncClient sqsAsyncClient() {
+    public SqsAsyncClient sqsAsyncClient(AwsCredentialsProvider credentialsProvider) {
         log.info("Configuring AWS SqsAsyncClient for region: {}", awsRegion);
-        SqsAsyncClientBuilder clientBuilder = SqsAsyncClient.builder()
+        return SqsAsyncClient.builder()
                 .region(Region.of(awsRegion))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
-
-        sqsEndpointOverride.ifPresent(endpoint -> {
-            log.warn("Applying SQS endpoint override for local testing: {}", endpoint);
-            clientBuilder.endpointOverride(URI.create(endpoint));
-        });
-
-        return clientBuilder.build();
+                .credentialsProvider(credentialsProvider)
+                .build();
     }
 }

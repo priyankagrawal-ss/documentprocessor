@@ -20,9 +20,8 @@ import java.net.URL;
 import java.util.Map;
 
 /**
- * Orchestrates the creation and initiation of document processing jobs.
- * This service acts as the primary entry point for the API layer, handling both
- * single and bulk (ZIP) upload workflows.
+ * Orchestrates the creation and initiation of document processing jobs. This service acts as the
+ * primary entry point for the API layer, handling both single and bulk (ZIP) upload workflows.
  */
 @Slf4j
 @Service
@@ -42,22 +41,22 @@ public class JobOrchestrationService {
     private String fileQueueName;
 
     /**
-     * Creates a new {@link ProcessingJob} record in the {@code PENDING_UPLOAD} state and
-     * generates a pre-signed S3 URL for the client to upload a file.
+     * Creates a new {@link ProcessingJob}, reserves an S3 key, and generates a pre-signed S3 URL
+     * for the client to upload a file directly to storage.
      *
      * @param fileName      The original name of the file to be uploaded.
-     * @param gxBucketId    (Optional) The target bucket ID. If null, the job is a bulk upload.
-     * @param skipGxProcess A flag to skip the final step of sending the document to GroundX.
+     * @param gxBucketId    The target bucket ID. If null, the job is treated as a bulk ZIP upload.
+     * @param skipGxProcess A flag to bypass the final step of sending the document to GroundX.
      * @return A {@link PresignedUploadResponse} containing the new job's ID and the upload URL.
      */
     @Transactional
     public PresignedUploadResponse createJobAndPresignedUrl(final String fileName, final Integer gxBucketId, final boolean skipGxProcess) {
         final String jobType = (gxBucketId == null) ? "BULK" : "SINGLE";
-        log.info("Creating new {} processing job for file: '{}'.", jobType, fileName);
+        log.info("Creating new {} processing job for file: '{}', skipGxProcess={}", jobType, fileName, skipGxProcess);
 
         ProcessingJob job = new ProcessingJob();
         job.setOriginalFilename(fileName);
-        job.setFileLocation("PENDING_S3_KEY"); // Placeholder until ID is generated
+        job.setFileLocation("PENDING_S3_KEY");
         job.setGxBucketId(gxBucketId);
         job.setSkipGxProcess(skipGxProcess);
         job.setStatus(ProcessingStatus.PENDING_UPLOAD);
@@ -75,12 +74,11 @@ public class JobOrchestrationService {
     }
 
     /**
-     * Initiates backend processing after a client confirms a file upload.
-     * This method transitions the job state and routes it to the correct SQS queue
-     * based on the file type (ZIP or single file).
+     * Initiates backend processing after a client confirms a successful file upload. This method
+     * transitions the job state and routes it to the correct SQS queue based on its type.
      *
      * @param jobId The ID of the job to trigger.
-     * @throws DocumentProcessingException if the job is not found or if a bulk upload is not a ZIP file.
+     * @throws DocumentProcessingException if the job is not found or fails validation.
      */
     @Transactional
     public void triggerProcessing(final Long jobId) {
@@ -94,38 +92,37 @@ public class JobOrchestrationService {
 
         if (job.isBulkUpload()) {
             if (!isZip) {
-                final String errorMsg = "Bulk uploads must be a ZIP file. Received: " + extension;
-                log.error("Job ID {} failed validation: {}", jobId, errorMsg);
+                final String errorMsg = "Bulk uploads must be a ZIP file but received: " + extension;
+                log.error("Validation failed for Job ID {}: {}", jobId, errorMsg);
                 job.setStatus(ProcessingStatus.FAILED);
                 job.setErrorMessage(errorMsg);
                 jobRepository.save(job);
                 throw new DocumentProcessingException(errorMsg);
             }
-            log.info("Job ID {} is a BULK upload. Queuing for ZIP extraction.", jobId);
-            queueZipForExtraction(job);
+            log.info("Job ID {} is a BULK upload. Routing to ZIP ingestion.", jobId);
+            queueZipForIngestion(job);
         } else {
             if (isZip) {
-                log.info("Job ID {} is a SINGLE ZIP upload for GxBucketId: {}. Queuing for extraction.", jobId, job.getGxBucketId());
-                queueZipForExtraction(job);
+                log.info("Job ID {} is a SINGLE ZIP upload for GxBucketId: {}. Routing to ZIP ingestion.", jobId, job.getGxBucketId());
+                queueZipForIngestion(job);
             } else {
-                log.info("Job ID {} is a SINGLE FILE upload for GxBucketId: {}. Queuing for processing.", jobId, job.getGxBucketId());
+                log.info("Job ID {} is a SINGLE FILE upload for GxBucketId: {}. Routing to file processing.", jobId, job.getGxBucketId());
                 queueFileForProcessing(job);
             }
         }
 
         job.setStatus(ProcessingStatus.QUEUED);
         jobRepository.save(job);
-        log.info("Job ID {} has been successfully queued for processing.", jobId);
+        log.info("Successfully queued Job ID {} for processing.", jobId);
     }
 
     /**
-     * Creates a {@link ZipMaster} record and queues it for extraction.
+     * Creates a {@link ZipMaster} record and queues it for the {@link ZipIngestionService}.
      */
-    private void queueZipForExtraction(final ProcessingJob job) {
-        job.setCurrentStage("Queued for ZIP Extraction");
+    private void queueZipForIngestion(final ProcessingJob job) {
+        job.setCurrentStage("Queued for ZIP Ingestion");
         final ZipMaster zipMaster = ZipMaster.builder()
-                .processingJob(job)
-                .gxBucketId(job.getGxBucketId())
+                .processingJob(job).gxBucketId(job.getGxBucketId())
                 .zipProcessingStatus(ZipProcessingStatus.QUEUED_FOR_EXTRACTION)
                 .originalFilePath(job.getFileLocation())
                 .originalFileName(job.getOriginalFilename())
@@ -137,24 +134,21 @@ public class JobOrchestrationService {
             @Override
             public void afterCommit() {
                 sqsTemplate.send(zipQueueName, Map.of("zipMasterId", zipMaster.getId()));
-                log.info("Successfully sent ZipMaster ID: {} to queue '{}'", zipMaster.getId(), zipQueueName);
+                log.info("Sent ZipMaster ID: {} to queue '{}'", zipMaster.getId(), zipQueueName);
             }
         });
     }
 
     /**
-     * Creates a {@link FileMaster} record and queues it for direct processing.
+     * Creates a {@link FileMaster} record and queues it directly for the {@link DocumentPipelineService}.
      */
     private void queueFileForProcessing(final ProcessingJob job) {
         job.setCurrentStage("Queued for File Processing");
         final FileMaster fileMaster = FileMaster.builder()
-                .processingJob(job)
-                .gxBucketId(job.getGxBucketId())
-                .fileLocation(job.getFileLocation())
-                .fileName(job.getOriginalFilename())
+                .processingJob(job).gxBucketId(job.getGxBucketId())
+                .fileLocation(job.getFileLocation()).fileName(job.getOriginalFilename())
                 .extension(FilenameUtils.getExtension(job.getOriginalFilename()).toLowerCase())
-                .fileProcessingStatus(FileProcessingStatus.QUEUED)
-                .sourceType(SourceType.UPLOADED)
+                .fileProcessingStatus(FileProcessingStatus.QUEUED).sourceType(SourceType.UPLOADED)
                 .build();
         fileMasterRepository.save(fileMaster);
         log.info("Created FileMaster ID: {} for Job ID: {}", fileMaster.getId(), job.getId());
@@ -163,7 +157,7 @@ public class JobOrchestrationService {
             @Override
             public void afterCommit() {
                 sqsTemplate.send(fileQueueName, Map.of("fileMasterId", fileMaster.getId()));
-                log.info("Successfully sent FileMaster ID: {} to queue '{}'", fileMaster.getId(), fileQueueName);
+                log.info("Sent FileMaster ID: {} to queue '{}'", fileMaster.getId(), fileQueueName);
             }
         });
     }

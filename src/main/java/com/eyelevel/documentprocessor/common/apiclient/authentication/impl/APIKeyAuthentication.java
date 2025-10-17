@@ -1,7 +1,6 @@
 package com.eyelevel.documentprocessor.common.apiclient.authentication.impl;
 
 import com.eyelevel.documentprocessor.common.apiclient.authentication.Authentication;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -11,11 +10,7 @@ import java.util.Map;
  * into request headers. This is a common authentication scheme for securing server-to-server API communication.
  */
 @Slf4j
-@RequiredArgsConstructor
-public class APIKeyAuthentication implements Authentication {
-
-    private final String headerName;
-    private final String apiKey;
+public record APIKeyAuthentication(String headerName, String apiKey) implements Authentication {
 
     /**
      * Applies the API key to the provided authorization map by adding a header with the

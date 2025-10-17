@@ -2,7 +2,7 @@ package com.eyelevel.documentprocessor.consumer;
 
 import com.eyelevel.documentprocessor.exception.DocumentProcessingException;
 import com.eyelevel.documentprocessor.exception.MessageProcessingFailedException;
-import com.eyelevel.documentprocessor.service.ZipExtractionService;
+import com.eyelevel.documentprocessor.service.ZipIngestionService;
 import com.eyelevel.documentprocessor.service.lifecycle.JobLifecycleManager;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
@@ -14,14 +14,14 @@ import java.util.Map;
 
 /**
  * An SQS message consumer that orchestrates the processing of ZIP archives.
- * It delegates the transactional extraction work to the {@link ZipExtractionService}.
+ * It delegates the transactional extraction work to the {@link ZipIngestionService}.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ZipExtractionConsumer {
 
-    private final ZipExtractionService zipExtractionService;
+    private final ZipIngestionService zipIngestionService;
     private final JobLifecycleManager jobLifecycleManager;
 
     /**
@@ -47,7 +47,7 @@ public class ZipExtractionConsumer {
         log.info("Received ZIP extraction task for ZipMaster ID: {}", zipMasterId);
 
         try {
-            zipExtractionService.extractAndQueueFiles(zipMasterId);
+            zipIngestionService.ingestAndQueueFiles(zipMasterId);
         } catch (DocumentProcessingException e) {
             // This is a terminal failure (e.g., invalid bulk structure). Mark job as FAILED and do not retry.
             log.error("A terminal error occurred processing ZipMaster ID: {}. Marking job as FAILED.", zipMasterId, e);

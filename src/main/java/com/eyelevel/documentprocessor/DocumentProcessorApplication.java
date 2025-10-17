@@ -44,17 +44,23 @@ public class DocumentProcessorApplication {
      * @param args Command-line arguments passed to the application.
      */
     public static void main(final String[] args) {
-        log.info("Starting DocumentProcessorApplication...");
+        log.info("🚀 Starting DocumentProcessorApplication...");
 
         final ConfigurableApplicationContext context = SpringApplication.run(DocumentProcessorApplication.class, args);
         final Environment env = context.getEnvironment();
 
-        log.info(
-                """
+        log.info("""
                         ------------------------------------------------------------------
-                        \tApplication '{}' is running!
-                        ------------------------------------------------------------------""",
-                env.getProperty("spring.application.name", "DocumentProcessor")
-        );
+                          Application '{}' is now running!
+                          Access URLs:
+                             - Local:      http://localhost:{}
+                             - Profile(s): {}
+                        ------------------------------------------------------------------
+                        """,
+                env.getProperty("spring.application.name", "DocumentProcessor"),
+                env.getProperty("server.port", "8080"),
+                String.join(", ", env.getActiveProfiles().length > 0
+                        ? env.getActiveProfiles()
+                        : new String[]{"default"}));
     }
 }

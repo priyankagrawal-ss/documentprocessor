@@ -1,4 +1,11 @@
+server:
+  port: ${APP_PORT}
+  servlet:
+    context-path: ${APP_SERVLET_CONTEXT_PATH:/api/document-processor}
+
 spring:
+  profiles:
+    active: ${ACTIVE_PROFILE}
   application:
     name: ${SPRING_APPLICATION_NAME}
   datasource:
@@ -13,6 +20,11 @@ spring:
         dialect: ${SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT}
 
 app:
+  jodconverter:
+    office:
+      home: ${APP_JODCONVERTER_OFFICEHOME}
+      port-numbers: ${APP_JODCONVERTER_PORTNUMBERS}
+      task-execution-timeout: ${APP_JODCONVERTER_TASKEXETIMEOUT}
   processing:
     max-file-size: ${APP_PROCESSING_MAX_FILE_SIZE}
     max-pages: ${APP_PROCESSING_MAX_PAGES}
@@ -36,12 +48,14 @@ app:
       retry:
         attempts: ${APP_PROCESSING_ZIPHANDLER_RETRY_ATTEMPTS}
         delay-ms: ${APP_PROCESSING_ZIPHANDLER_RETRY_DELAY_MS}
+
   scheduler:
     gx-doc-upload: ${APP_SCHEDULER_GXDOCUPLOAD}
     fetch-doc-upload-status: ${APP_SCHEDULER_FETCHDOCUPLOADSTATUS}
     stale-job: ${APP_SCHEDULER_STALEJOB}
     stale-job-cleanup-hours: ${APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS}
     job-completion-check: ${APP_SCHEDULER_JOBCOMPLETIONCHECK}
+
   gx-client:
     baseurl: ${APP_GXCLIENT_BASEURL}
     auth-key-name: ${APP_GXCLIENT_AUTHKEYNAME}
