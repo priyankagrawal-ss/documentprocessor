@@ -37,6 +37,7 @@ dependencies {
 
     implementation 'org.jodconverter:jodconverter-spring-boot-starter:4.4.7'
     implementation 'org.jodconverter:jodconverter-local:4.4.11'
+    implementation 'com.smartsensesolutions:commons-dao:1.0.2'
 
     // ------------------------------
     // Environment (.env) support
@@ -53,6 +54,8 @@ dependencies {
     // Database
     // ------------------------------
     runtimeOnly 'org.postgresql:postgresql'
+    implementation("org.liquibase:liquibase-core:5.0.1")
+
 
     // ------------------------------
     // PDF manipulation
@@ -78,12 +81,4 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // ------------------------------
-    // Testing
-    // ------------------------------
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
 }

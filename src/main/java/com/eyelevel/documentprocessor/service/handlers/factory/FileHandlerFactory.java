@@ -26,13 +26,13 @@ public class FileHandlerFactory {
      * Finds and returns a FileHandler that supports the specified file extension.
      *
      * @param extension The file extension (e.g., "pdf", "docx").
+     *
      * @return An {@link Optional} containing the matched {@link FileHandler}, or empty if no handler is found.
      */
     public Optional<FileHandler> getHandler(String extension) {
-        Optional<FileHandler> handler = handlers.stream()
-                .filter(h -> h.supports(extension))
-                .findFirst();
-        log.debug("Searching for handler for extension '{}'. Found: {}", extension, handler.map(h -> h.getClass().getSimpleName()).orElse("None"));
+        Optional<FileHandler> handler = handlers.stream().filter(h -> h.supports(extension)).findFirst();
+        log.debug("Searching for handler for extension '{}'. Found: {}", extension,
+                  handler.map(h -> h.getClass().getSimpleName()).orElse("None"));
         return handler;
     }
 }

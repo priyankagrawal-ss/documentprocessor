@@ -21,7 +21,9 @@ public class JacksonJsonSerializer implements JsonSerializer {
      *
      * @param object The Java object to serialize.
      * @param <T>    The type of the Java object.
+     *
      * @return The JSON representation of the object as a string.
+     *
      * @throws JsonParsingException if an error occurs during JSON
      *                              serialization.
      */
@@ -36,12 +38,15 @@ public class JacksonJsonSerializer implements JsonSerializer {
      * @param object      The Java object to serialize.
      * @param prettyPrint Whether to format the JSON with indentation and line breaks for readability.
      * @param <T>         The type of the Java object.
+     *
      * @return The JSON representation of the object as a string.
+     *
      * @throws JsonParsingException if an error occurs during JSON serialization.
      */
     @Override
     public <T> String serialize(T object, boolean prettyPrint) {
-        log.debug("Serializing Java object to JSON string (prettyPrint: {}): {}", prettyPrint, object.getClass().getName());
+        log.debug("Serializing Java object to JSON string (prettyPrint: {}): {}", prettyPrint,
+                  object.getClass().getName());
         try {
             String json;
             if (prettyPrint) {

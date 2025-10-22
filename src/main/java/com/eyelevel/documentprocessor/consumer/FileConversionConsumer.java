@@ -1,8 +1,8 @@
 package com.eyelevel.documentprocessor.consumer;
 
 import com.eyelevel.documentprocessor.exception.MessageProcessingFailedException;
-import com.eyelevel.documentprocessor.service.DocumentPipelineService;
-import com.eyelevel.documentprocessor.service.FileLockingService;
+import com.eyelevel.documentprocessor.service.file.DocumentPipelineService;
+import com.eyelevel.documentprocessor.service.file.FileLockingService;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +38,8 @@ public class FileConversionConsumer {
 
         final Object idObject = message.get("fileMasterId");
         if (!(idObject instanceof Number)) {
-            log.error("[FATAL] SQS message is invalid or missing 'fileMasterId'. Message will be dropped. Payload: {}", message);
+            log.error("[FATAL] SQS message is invalid or missing 'fileMasterId'. Message will be dropped. Payload: {}",
+                      message);
             return;
         }
 
@@ -46,7 +47,9 @@ public class FileConversionConsumer {
         log.info("Received file processing task for FileMaster ID: {}", fileMasterId);
 
         if (!fileLockingService.acquireLock(fileMasterId)) {
-            log.warn("Could not acquire lock for FileMaster ID: {}. The file may already be processed or is not in a queued state.", fileMasterId);
+            log.warn(
+                    "Could not acquire lock for FileMaster ID: {}. The file may already be processed or is not in a queued state.",
+                    fileMasterId);
             return;
         }
 
@@ -57,8 +60,10 @@ public class FileConversionConsumer {
         } catch (final Exception e) {
             // The JobLifecycleManager is called within the pipeline service to handle the failure state.
             // This exception is re-thrown to leverage the SQS retry/DLQ mechanism for transient errors.
-            log.error("Pipeline execution failed for FileMaster ID: {}. Re-throwing to trigger SQS retry.", fileMasterId, e);
-            throw new MessageProcessingFailedException("Pipeline processing failed for FileMaster ID " + fileMasterId, e);
+            log.error("Pipeline execution failed for FileMaster ID: {}. Re-throwing to trigger SQS retry.",
+                      fileMasterId, e);
+            throw new MessageProcessingFailedException("Pipeline processing failed for FileMaster ID " + fileMasterId,
+                                                       e);
         }
     }
 }

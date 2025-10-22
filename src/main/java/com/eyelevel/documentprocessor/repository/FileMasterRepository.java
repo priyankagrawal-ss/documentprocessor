@@ -2,10 +2,14 @@ package com.eyelevel.documentprocessor.repository;
 
 import com.eyelevel.documentprocessor.model.FileMaster;
 import com.eyelevel.documentprocessor.model.FileProcessingStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,51 +20,48 @@ import java.util.Optional;
 @Repository
 public interface FileMasterRepository extends JpaRepository<FileMaster, Long> {
 
-    /**
-     * Finds the first successfully completed {@link FileMaster} that matches a specific bucket and file hash.
-     * This is primarily used for duplicate detection.
-     *
-     * @param gxBucketId The GroundX bucket ID to search within.
-     * @param fileHash   The SHA-256 hash of the file content.
-     * @param status     The processing status to match (typically {@code COMPLETED}).
-     * @return An {@link Optional} containing the matching {@link FileMaster}, if found.
-     */
-    Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndFileProcessingStatus(
-            Integer gxBucketId, String fileHash, FileProcessingStatus status);
+    Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndFileProcessingStatusNotIn(Integer gxBucketId,
+                                                                                      String fileHash,
+                                                                                      List<FileProcessingStatus> statuses);
+
+    List<FileMaster> findAllByGxBucketIdAndFileHashAndFileProcessingStatusNotIn(Integer gxBucketId, String fileHash,
+                                                                                List<FileProcessingStatus> statuses);
 
     /**
      * Finds all {@link FileMaster} entities associated with a specific {@link com.eyelevel.documentprocessor.model.ProcessingJob}.
      *
      * @param jobId The ID of the parent {@code ProcessingJob}.
+     *
      * @return A list of all associated {@code FileMaster} entities.
      */
     List<FileMaster> findAllByProcessingJobId(Long jobId);
 
     /**
-     * Finds ALL FileMaster records within a specific bucket that match a given original content hash,
-     * regardless of their processing status. This is the key to solving the race condition.
+     * Atomically updates the status of a FileMaster record only if its current status
+     * matches the expected status.
      *
-     * @param gxBucketId          The bucket ID to search within.
-     * @param originalContentHash The immutable hash to check.
-     * @return A list of all matching files in the specified bucket.
+     * @param id             The ID of the FileMaster to update.
+     * @param newStatus      The new status to set.
+     * @param expectedStatus The status the record must currently have for the update to occur.
+     *
+     * @return The number of rows affected (1 if the lock was acquired, 0 otherwise).
      */
-    List<FileMaster> findAllByGxBucketIdAndOriginalContentHash(Integer gxBucketId, String originalContentHash);
+    @Modifying
+    @Query("UPDATE FileMaster fm SET fm.fileProcessingStatus = :newStatus WHERE fm.id = :id AND fm.fileProcessingStatus = :expectedStatus")
+    int updateStatusIfExpected(@Param("id") Long id, @Param("newStatus") FileProcessingStatus newStatus,
+                               @Param("expectedStatus") FileProcessingStatus expectedStatus);
 
-    /**
-     * Finds any completed duplicate within a specific bucket by checking a hash against
-     * both the original and final content hashes of existing records.
-     *
-     * @param gxBucketId The bucket ID to search within.
-     * @param hash       The hash of the new file to check.
-     * @param status     The status to filter by (e.g., COMPLETED).
-     * @return A list of matching duplicates, ordered by ID to ensure deterministic selection.
-     */
-    @Query("SELECT fm FROM FileMaster fm WHERE fm.gxBucketId = :gxBucketId AND fm.fileProcessingStatus = :status " +
-           "AND (fm.originalContentHash = :hash OR fm.fileHash = :hash) " +
-           "ORDER BY fm.id ASC")
-    List<FileMaster> findCompletedDuplicateInBucketByHash(
-            @Param("gxBucketId") Integer gxBucketId,
-            @Param("hash") String hash,
-            @Param("status") FileProcessingStatus status
-    );
+    Optional<FileMaster> findByProcessingJobId(Long jobId);
+
+    @Transactional(readOnly = true)
+    Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndFileProcessingStatusNotInOrderByIdAsc(Integer gxBucketId,
+                                                                                                  String fileHash,
+                                                                                                  List<FileProcessingStatus> statuses);
+    @Transactional(readOnly = true)
+    Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndIdNotAndFileProcessingStatusNotInOrderByIdAsc(
+            Integer gxBucketId,
+            String fileHash,
+            Long idToExclude,
+            List<FileProcessingStatus> statuses
+                                                                                                         );
 }

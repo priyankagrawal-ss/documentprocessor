@@ -30,10 +30,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Slf4j
 @EnableAsync
 @EnableScheduling
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.eyelevel.documentprocessor", "com.smartsensesolutions"})
 @EnableJpaRepositories(basePackages = "com.eyelevel.documentprocessor.repository")
 @EnableConfigurationProperties(value = DocumentProcessingConfig.class)
 @EnableRetry
+
 public class DocumentProcessorApplication {
 
     /**
@@ -54,8 +55,8 @@ public class DocumentProcessorApplication {
         log.info("Access URLs:");
         log.info("  - Local:      http://localhost:{}", env.getProperty("server.port", "8080"));
         log.info("  - Profile(s): {}", String.join(", ", env.getActiveProfiles().length > 0
-                ? env.getActiveProfiles()
-                : new String[]{"default"}));
+                                                         ? env.getActiveProfiles()
+                                                         : new String[]{"default"}));
         log.info("------------------------------------------------------------------");
     }
 }

@@ -18,6 +18,7 @@ public interface FileHandler {
      * Determines if this handler can process a file with the given extension.
      *
      * @param extension The file extension (e.g., "pdf", "docx").
+     *
      * @return {@code true} if the handler supports the extension, {@code false} otherwise.
      */
     boolean supports(String extension);
@@ -30,6 +31,7 @@ public interface FileHandler {
      *
      * @param inputStream The input stream of the file content.
      * @param context     The database entity representing the file being processed, providing job context.
+     *
      * @return A list of {@link ExtractedFileItem} objects.
      * - If new files were extracted, the list will contain them.
      * - If the original file was transformed, the list will contain the single transformed result.

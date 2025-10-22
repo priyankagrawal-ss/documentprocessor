@@ -26,7 +26,7 @@ public class JobLifecycleManager {
     private final ProcessingJobRepository processingJobRepository;
     private final ZipMasterRepository zipMasterRepository;
     private final FileMasterRepository fileMasterRepository;
-    
+
     /**
      * Marks a job as FAILED due to a terminal error during the ZIP extraction phase.
      *
@@ -49,7 +49,8 @@ public class JobLifecycleManager {
                 return;
             }
 
-            log.error("Marking Job ID {} (via ZipMaster ID {}) as FAILED. Reason: {}", job.getId(), zipMasterId, errorMessage);
+            log.error("Marking Job ID {} (via ZipMaster ID {}) as FAILED. Reason: {}", job.getId(), zipMasterId,
+                      errorMessage);
 
             zipMaster.setZipProcessingStatus(ZipProcessingStatus.EXTRACTION_FAILED);
             zipMaster.setErrorMessage(errorMessage);
@@ -61,7 +62,9 @@ public class JobLifecycleManager {
             processingJobRepository.save(job);
 
         } catch (final Exception e) {
-            log.error("CRITICAL: Failed to execute the job failure protocol for ZipMaster ID: {}. The job state may be inconsistent.", zipMasterId, e);
+            log.error(
+                    "CRITICAL: Failed to execute the job failure protocol for ZipMaster ID: {}. The job state may be inconsistent.",
+                    zipMasterId, e);
         }
     }
 
@@ -87,7 +90,8 @@ public class JobLifecycleManager {
                 return;
             }
 
-            log.error("Marking Job ID {} (via FileMaster ID {}) as FAILED. Reason: {}", job.getId(), fileMasterId, errorMessage);
+            log.error("Marking Job ID {} (via FileMaster ID {}) as FAILED. Reason: {}", job.getId(), fileMasterId,
+                      errorMessage);
 
             fileMaster.setFileProcessingStatus(FileProcessingStatus.FAILED);
             fileMaster.setErrorMessage(errorMessage);
@@ -96,11 +100,14 @@ public class JobLifecycleManager {
             if (job.getStatus() != ProcessingStatus.FAILED) {
                 job.setStatus(ProcessingStatus.FAILED);
                 job.setCurrentStage("Individual File Processing Failed");
-                job.setErrorMessage("One or more files failed processing. First failure on FileMaster ID " + fileMasterId + ".");
+                job.setErrorMessage(
+                        "One or more files failed processing. First failure on FileMaster ID " + fileMasterId + ".");
                 processingJobRepository.save(job);
             }
         } catch (final Exception e) {
-            log.error("CRITICAL: Failed to execute the job failure protocol for FileMaster ID: {}. Job state may be inconsistent.", fileMasterId, e);
+            log.error(
+                    "CRITICAL: Failed to execute the job failure protocol for FileMaster ID: {}. Job state may be inconsistent.",
+                    fileMasterId, e);
         }
     }
 

@@ -43,7 +43,8 @@ public class GXDocumentUploadFetchStatus {
         log.info("Starting GX document status fetch scheduler...");
 
         final List<GxStatus> activeStatuses = List.of(GxStatus.PROCESSING, GxStatus.QUEUED);
-        final List<GxMaster> activeProcesses = gxMasterRepository.findAllByStatusInOrderByCreatedAtAsc(activeStatuses, Pageable.unpaged());
+        final List<GxMaster> activeProcesses = gxMasterRepository.findAllByStatusInOrderByCreatedAtAsc(activeStatuses,
+                                                                                                       Pageable.unpaged());
 
         if (CollectionUtils.isEmpty(activeProcesses)) {
             log.info("No active GX processes found. Scheduler run is complete.");
@@ -55,19 +56,19 @@ public class GXDocumentUploadFetchStatus {
 
         for (final GxMaster gxMaster : activeProcesses) {
             try {
-                log.debug("Fetching status for GxMaster ID: {}, Process ID: {}", gxMaster.getId(), gxMaster.getGxProcessId());
+                log.debug("Fetching status for GxMaster ID: {}, Process ID: {}", gxMaster.getId(),
+                          gxMaster.getGxProcessId());
                 final IngestResponse ingestResponse = gxApiClient.fetchUploadDocumentStatus(gxMaster.getGxProcessId());
 
-                extractDocumentDetails(ingestResponse).ifPresentOrElse(
-                        documentDetails -> {
-                            updateMasterFromDocumentDetails(gxMaster, documentDetails);
-                            mastersToUpdate.add(gxMaster);
-                        },
-                        () -> log.warn("Could not find document details in GX response for process ID: {}", gxMaster.getGxProcessId())
-                );
+                extractDocumentDetails(ingestResponse).ifPresentOrElse(documentDetails -> {
+                    updateMasterFromDocumentDetails(gxMaster, documentDetails);
+                    mastersToUpdate.add(gxMaster);
+                }, () -> log.warn("Could not find document details in GX response for process ID: {}",
+                                  gxMaster.getGxProcessId()));
 
             } catch (final Exception e) {
-                log.error("Failed to fetch or process status for GxMaster ID: {}. Marking as ERROR.", gxMaster.getId(), e);
+                log.error("Failed to fetch or process status for GxMaster ID: {}. Marking as ERROR.", gxMaster.getId(),
+                          e);
                 gxMaster.setGxStatus(GxStatus.ERROR);
                 gxMaster.setErrorMessage("Failed to retrieve status from GX: " + e.getMessage());
                 mastersToUpdate.add(gxMaster);
@@ -87,6 +88,7 @@ public class GXDocumentUploadFetchStatus {
      * It checks categories in order of finality: complete, errors, cancelled, and finally processing.
      *
      * @param ingestResponse The response from the GX API.
+     *
      * @return An {@link Optional} containing the document details if found.
      */
     private Optional<IngestResponse.Document> extractDocumentDetails(final IngestResponse ingestResponse) {
@@ -94,19 +96,20 @@ public class GXDocumentUploadFetchStatus {
             return Optional.empty();
         }
         final IngestResponse.Progress progress = ingestResponse.ingest().progress();
-        return findFirstDocumentInCategory(progress.complete())
-                .or(() -> findFirstDocumentInCategory(progress.errors()))
-                .or(() -> findFirstDocumentInCategory(progress.cancelled()))
-                .or(() -> findFirstDocumentInCategory(progress.processing()));
+        return findFirstDocumentInCategory(progress.complete()).or(() -> findFirstDocumentInCategory(progress.errors()))
+                                                               .or(() -> findFirstDocumentInCategory(
+                                                                       progress.cancelled()))
+                                                               .or(() -> findFirstDocumentInCategory(
+                                                                       progress.processing()));
     }
 
     /**
      * A helper method to safely get the first document from a progress category.
      */
-    private Optional<IngestResponse.Document> findFirstDocumentInCategory(final IngestResponse.ProgressCategory category) {
-        return (category != null && !CollectionUtils.isEmpty(category.documents()))
-                ? Optional.of(category.documents().getFirst())
-                : Optional.empty();
+    private Optional<IngestResponse.Document> findFirstDocumentInCategory(
+            final IngestResponse.ProgressCategory category) {
+        return (category != null && !CollectionUtils.isEmpty(category.documents())) ? Optional.of(
+                category.documents().getFirst()) : Optional.empty();
     }
 
     /**
@@ -118,6 +121,7 @@ public class GXDocumentUploadFetchStatus {
         if (StringUtils.hasText(document.statusMessage())) {
             gxMaster.setErrorMessage(document.statusMessage());
         }
-        log.info("Updating GxMaster ID: {}. New status: {}, Message: '{}'", gxMaster.getId(), newStatus, gxMaster.getErrorMessage());
+        log.info("Updating GxMaster ID: {}. New status: {}, Message: '{}'", gxMaster.getId(), newStatus,
+                 gxMaster.getErrorMessage());
     }
 }

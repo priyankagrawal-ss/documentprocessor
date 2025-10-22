@@ -22,6 +22,7 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
      * The relationship is unique, so this will return at most one result.
      *
      * @param sourceFileId The ID of the source {@code FileMaster}.
+     *
      * @return An {@link Optional} containing the matching {@link GxMaster}, if found.
      */
     Optional<GxMaster> findBySourceFileId(Long sourceFileId);
@@ -31,6 +32,7 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
      *
      * @param gxStatus The status to filter by.
      * @param pageable The pagination information.
+     *
      * @return A list of matching {@link GxMaster} entities.
      */
     List<GxMaster> findByGxStatusOrderByCreatedAtAsc(GxStatus gxStatus, Pageable pageable);
@@ -41,17 +43,18 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
      *
      * @param statuses A list of {@link GxStatus} values to search for.
      * @param pageable The pagination information.
+     *
      * @return A list of matching {@link GxMaster} entities.
      */
     @Query("SELECT gm FROM GxMaster gm WHERE gm.gxStatus IN :statuses ORDER BY gm.createdAt ASC")
-    List<GxMaster> findAllByStatusInOrderByCreatedAtAsc(
-            @Param("statuses") List<GxStatus> statuses, Pageable pageable);
+    List<GxMaster> findAllByStatusInOrderByCreatedAtAsc(@Param("statuses") List<GxStatus> statuses, Pageable pageable);
 
     /**
      * Counts the total number of {@link GxMaster} records that have one of the specified statuses.
      * This is used to monitor in-progress uploads to avoid exceeding concurrency limits.
      *
      * @param statuses A list of statuses to count (e.g., {@code QUEUED}, {@code PROCESSING}).
+     *
      * @return The total count of records with the specified statuses.
      */
     long countByGxStatusIn(List<GxStatus> statuses);
@@ -61,6 +64,7 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
      * by joining through the {@link com.eyelevel.documentprocessor.model.FileMaster} entity.
      *
      * @param jobId The ID of the parent {@code ProcessingJob}.
+     *
      * @return A list of all related {@link GxMaster} entities.
      */
     @Query("SELECT gm FROM GxMaster gm JOIN gm.sourceFile fm WHERE fm.processingJob.id = :jobId")

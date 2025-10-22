@@ -31,7 +31,9 @@ public class JacksonJsonParser implements JsonParser {
      * @param json      The JSON data as a string.
      * @param valueType The class of the Java object to parse the JSON into.
      * @param <T>       The type of the Java object.
+     *
      * @return The parsed Java object.
+     *
      * @throws JsonParsingException if an error occurs during JSON parsing.
      */
     @Override
@@ -54,7 +56,9 @@ public class JacksonJsonParser implements JsonParser {
      * @param jsonBytes The JSON data as a byte array.
      * @param valueType The class of the Java object to parse the JSON into.
      * @param <T>       The type of the Java object.
+     *
      * @return The parsed Java object.
+     *
      * @throws JsonParsingException if an error occurs during JSON parsing.
      */
     @Override
@@ -76,7 +80,9 @@ public class JacksonJsonParser implements JsonParser {
      * @param jsonBytes The JSON data as a byte array.
      * @param valueType The class of the Java object to parse the JSON into.
      * @param <T>       The type of the Java object.
+     *
      * @return The parsed Java object.
+     *
      * @throws JsonParsingException if an error occurs during JSON parsing.
      */
     private <T> T parseJson(byte[] jsonBytes, Class<T> valueType) {

@@ -57,9 +57,11 @@ public class MsgHandler implements FileHandler {
             // Attachment extraction logic remains the same
             for (AttachmentChunks chunk : msg.getAttachmentFiles()) {
                 if (chunk.getAttachData() != null && chunk.getAttachData().getValue() != null) {
-                    String filename = chunk.getAttachLongFileName() != null ?
-                            chunk.getAttachLongFileName().toString() :
-                            (chunk.getAttachFileName() != null ? chunk.getAttachFileName().toString() : "attachment-" + UUID.randomUUID());
+                    String filename = chunk.getAttachLongFileName() != null
+                                      ? chunk.getAttachLongFileName().toString()
+                                      : (chunk.getAttachFileName() != null
+                                         ? chunk.getAttachFileName().toString()
+                                         : "attachment-" + UUID.randomUUID());
 
                     byte[] content = chunk.getAttachData().getValue();
                     extractedItems.add(new ExtractedFileItem(filename, content));
@@ -77,9 +79,11 @@ public class MsgHandler implements FileHandler {
                 if (bodyPdfBytes != null && bodyPdfBytes.length > 0) {
                     String pdfFileName = "Email_Body_" + UUID.randomUUID() + ".pdf";
                     extractedItems.add(new ExtractedFileItem(pdfFileName, bodyPdfBytes));
-                    log.info("[{}] Successfully converted email body to PDF ({} bytes).", contextInfo, bodyPdfBytes.length);
+                    log.info("[{}] Successfully converted email body to PDF ({} bytes).", contextInfo,
+                             bodyPdfBytes.length);
                 } else {
-                    log.warn("[{}] Email body conversion to PDF resulted in an empty file or failed after retries.", contextInfo);
+                    log.warn("[{}] Email body conversion to PDF resulted in an empty file or failed after retries.",
+                             contextInfo);
                 }
             } else {
                 log.info("[{}] No renderable email body found in MSG file.", contextInfo);
@@ -90,7 +94,7 @@ public class MsgHandler implements FileHandler {
         return extractedItems;
     }
 
-// In MsgHandler.java
+    // In MsgHandler.java
 
     /**
      * Safely extracts and cleans the email body from the MAPIMessage object.
@@ -98,6 +102,7 @@ public class MsgHandler implements FileHandler {
      * and produces a well-formed, correctly styled XHTML string suitable for PDF rendering.
      *
      * @param msg The parsed MAPIMessage object.
+     *
      * @return A string containing a well-formed XHTML document.
      */
     private String getBodyAsCleanHtml(MAPIMessage msg) {
@@ -137,12 +142,14 @@ public class MsgHandler implements FileHandler {
             // First, try to get the rich HTML body
             String rawHtml = msg.getHtmlBody();
             if (rawHtml != null && !rawHtml.isBlank()) {
-                Safelist safelist = Safelist.relaxed()
-                        .addAttributes(":all", "style", "class", "id")
-                        .addTags("table", "thead", "tbody", "tfoot", "tr", "th", "td", "div", "span")
-                        .addAttributes("table", "summary", "width", "cellpadding", "cellspacing")
-                        .addAttributes("td", "abbr", "axis", "colspan", "rowspan", "width", "valign")
-                        .addAttributes("th", "abbr", "axis", "colspan", "rowspan", "scope", "width", "valign");
+                Safelist safelist = Safelist.relaxed().addAttributes(":all", "style", "class", "id")
+                                            .addTags("table", "thead", "tbody", "tfoot", "tr", "th", "td", "div",
+                                                     "span")
+                                            .addAttributes("table", "summary", "width", "cellpadding", "cellspacing")
+                                            .addAttributes("td", "abbr", "axis", "colspan", "rowspan", "width",
+                                                           "valign")
+                                            .addAttributes("th", "abbr", "axis", "colspan", "rowspan", "scope", "width",
+                                                           "valign");
                 String sanitizedHtml = Jsoup.clean(rawHtml, safelist);
                 bodyContent = Jsoup.parse(sanitizedHtml).body().html();
             } else {
@@ -157,9 +164,7 @@ public class MsgHandler implements FileHandler {
                 if (plainTextBody != null && !plainTextBody.isBlank()) {
                     // 1. Get the raw text WITH its original newline characters. DO NOT use Jsoup.text().
                     // 2. Escape any special HTML characters to prevent breaking the structure.
-                    String escapedText = plainTextBody.replace("&", "&amp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;");
+                    String escapedText = plainTextBody.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
                     // 3. Wrap the result in a <pre> tag. The newlines are preserved, and the
                     //    CSS 'white-space: pre-wrap' will handle the formatting.
                     bodyContent = "<pre>" + escapedText + "</pre>";

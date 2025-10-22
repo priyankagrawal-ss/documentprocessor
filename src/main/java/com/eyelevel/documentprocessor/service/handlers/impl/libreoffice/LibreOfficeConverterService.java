@@ -23,25 +23,22 @@ public class LibreOfficeConverterService {
     /**
      * Converts a source file to a target PDF file using a managed LibreOffice process.
      */
-    @Retryable(
-            retryFor = {OfficeException.class, FileConversionException.class},
-            maxAttemptsExpression = "#{${app.processing.libreoffice.retry.attempts} + 1}",
-            backoff = @Backoff(delayExpression = "#{${app.processing.libreoffice.retry.delay-ms}}"),
-            listeners = {"libreOfficeRetryListener"}
-    )
+    @Retryable(retryFor = {OfficeException.class, FileConversionException.class},
+               maxAttemptsExpression = "#{${app.processing.libreoffice.retry.attempts} + 1}",
+               backoff = @Backoff(delayExpression = "#{${app.processing.libreoffice.retry.delay-ms}}"),
+               listeners = {"libreOfficeRetryListener"})
     public void convertToPdf(File inputFile, File outputFile, String contextInfo) throws FileConversionException {
         log.info("[{}] Attempting LibreOffice conversion for '{}'.", contextInfo, inputFile.getName());
 
         try {
             // Use LocalConverter with the injected OfficeManager
-            LocalConverter.make(officeManager)
-                    .convert(inputFile)
-                    .to(outputFile)
-                    .execute();
+            LocalConverter.make(officeManager).convert(inputFile).to(outputFile).execute();
 
             if (!outputFile.exists() || outputFile.length() == 0) {
-                log.error("[{}] Conversion resulted in a missing or empty file for '{}'.", contextInfo, inputFile.getName());
-                throw new FileConversionException("Conversion resulted in an empty or missing file for: " + inputFile.getName());
+                log.error("[{}] Conversion resulted in a missing or empty file for '{}'.", contextInfo,
+                          inputFile.getName());
+                throw new FileConversionException(
+                        "Conversion resulted in an empty or missing file for: " + inputFile.getName());
             }
 
         } catch (OfficeException e) {
@@ -51,8 +48,10 @@ public class LibreOfficeConverterService {
     }
 
     @Recover
-    public void recover(Exception e, File inputFile, File outputFile, String contextInfo) throws FileConversionException {
-        String errorMessage = String.format("LibreOffice conversion failed for '%s' after all retry attempts.", inputFile.getName());
+    public void recover(Exception e, File inputFile, File outputFile, String contextInfo)
+    throws FileConversionException {
+        String errorMessage = String.format("LibreOffice conversion failed for '%s' after all retry attempts.",
+                                            inputFile.getName());
         log.error("[{}] {}", contextInfo, errorMessage, e);
         throw new FileConversionException(errorMessage, e);
     }

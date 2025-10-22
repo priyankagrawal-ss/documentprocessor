@@ -23,37 +23,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class JobLifecycleScheduler {
 
+    private static final Set<ProcessingStatus> ACTIVE_STATUSES = Set.of(ProcessingStatus.QUEUED,
+                                                                        ProcessingStatus.PROCESSING,
+                                                                        ProcessingStatus.UPLOAD_COMPLETE);
+    private static final Set<ZipProcessingStatus> PENDING_ZIP_STATUSES = Set.of(
+            ZipProcessingStatus.QUEUED_FOR_EXTRACTION, ZipProcessingStatus.EXTRACTION_IN_PROGRESS);
+    private static final Set<FileProcessingStatus> PENDING_FILE_STATUSES = Set.of(FileProcessingStatus.QUEUED,
+                                                                                  FileProcessingStatus.IN_PROGRESS);
+    private static final Set<GxStatus> PENDING_GX_STATUSES = Set.of(GxStatus.QUEUED_FOR_UPLOAD, GxStatus.PROCESSING);
     private final ProcessingJobRepository processingJobRepository;
     private final ZipMasterRepository zipMasterRepository;
     private final FileMasterRepository fileMasterRepository;
     private final GxMasterRepository gxMasterRepository;
     private final JobLifecycleManager jobLifecycleManager;
-
-    private static final Set<ProcessingStatus> ACTIVE_STATUSES = Set.of(
-            ProcessingStatus.QUEUED, ProcessingStatus.PROCESSING, ProcessingStatus.UPLOAD_COMPLETE
-    );
-    private static final Set<ZipProcessingStatus> PENDING_ZIP_STATUSES = Set.of(
-            ZipProcessingStatus.QUEUED_FOR_EXTRACTION, ZipProcessingStatus.EXTRACTION_IN_PROGRESS
-    );
-    private static final Set<FileProcessingStatus> PENDING_FILE_STATUSES = Set.of(
-            FileProcessingStatus.QUEUED, FileProcessingStatus.IN_PROGRESS
-    );
-    private static final Set<GxStatus> PENDING_GX_STATUSES = Set.of(
-            GxStatus.QUEUED_FOR_UPLOAD, GxStatus.PROCESSING
-    );
-
-    /**
-     * A private record to hold a detailed, aggregated status summary of a processing job.
-     */
-    private record JobStatusSummary(
-            int totalFileCount,
-            int successCount,
-            int ignoredCount,
-            int skippedDuplicateCount,
-            int failedCount,
-            String firstErrorMessage
-    ) {
-    }
 
     /**
      * Runs on a fixed schedule to find and finalize jobs that are no longer in an active processing state.
@@ -73,7 +55,8 @@ public class JobLifecycleScheduler {
             try {
                 determineJobFinalState(job);
             } catch (Exception e) {
-                log.error("Error during finalization check for Job ID: {}. It will be re-checked on the next run.", job.getId(), e);
+                log.error("Error during finalization check for Job ID: {}. It will be re-checked on the next run.",
+                          job.getId(), e);
             }
         }
         log.info("Finished scheduled job lifecycle check.");
@@ -92,9 +75,9 @@ public class JobLifecycleScheduler {
         final List<GxMaster> associatedGxRecords = gxMasterRepository.findAllByProcessingJobId(jobId);
 
         // Priority 1: A failed ZIP extraction is a total job failure.
-        Optional<ZipMaster> failedZip = associatedZips.stream()
-                .filter(zip -> zip.getZipProcessingStatus() == ZipProcessingStatus.EXTRACTION_FAILED)
-                .findFirst();
+        Optional<ZipMaster> failedZip = associatedZips.stream().filter(zip -> zip.getZipProcessingStatus() ==
+                                                                              ZipProcessingStatus.EXTRACTION_FAILED)
+                                                      .findFirst();
         if (failedZip.isPresent()) {
             String errorMessage = "ZIP extraction failed. Reason: " + failedZip.get().getErrorMessage();
             log.error("Job ID {} has a failed ZIP extraction. Marking job as FAILED.", jobId);
@@ -137,7 +120,6 @@ public class JobLifecycleScheduler {
         }
     }
 
-
     /**
      * Checks if any ZipMaster, FileMaster, or GxMaster records are still in an active, non-terminal state.
      */
@@ -162,28 +144,29 @@ public class JobLifecycleScheduler {
         int skippedDuplicateCount = 0;
         String firstErrorMessage = "The job failed, but no specific error message was captured.";
 
-        Map<Long, GxMaster> gxFailures = gxRecords.stream()
-                .filter(gx -> gx.getGxStatus() == GxStatus.ERROR)
-                .collect(Collectors.toMap(gx -> gx.getSourceFile().getId(), gx -> gx));
+        Map<Long, GxMaster> gxFailures = gxRecords.stream().filter(gx -> gx.getGxStatus() == GxStatus.ERROR).collect(
+                Collectors.toMap(gx -> gx.getSourceFile().getId(), gx -> gx));
 
         for (final FileMaster file : files) {
             // Check for failures first, as they are the highest priority.
             if (file.getFileProcessingStatus() == FileProcessingStatus.FAILED) {
                 failedCount++;
                 if (failedCount == 1) {
-                    firstErrorMessage = "File '%s' failed during processing: %s".formatted(file.getFileName(), file.getErrorMessage());
+                    firstErrorMessage = "File '%s' failed during processing: %s".formatted(file.getFileName(),
+                                                                                           file.getErrorMessage());
                 }
             } else if (gxFailures.containsKey(file.getId())) {
                 GxMaster failedGx = gxFailures.get(file.getId());
                 failedCount++;
                 if (failedCount == 1) {
-                    firstErrorMessage = "File '%s' failed during GX upload: %s".formatted(failedGx.getProcessedFileName(), failedGx.getErrorMessage());
+                    firstErrorMessage = "File '%s' failed during GX upload: %s".formatted(
+                            failedGx.getProcessedFileName(), failedGx.getErrorMessage());
                 }
             }
             // If not failed, check for other terminal states.
             else if (file.getFileProcessingStatus() == FileProcessingStatus.IGNORED) {
                 ignoredCount++;
-            } else if (file.getFileProcessingStatus() == FileProcessingStatus.SKIPPED_DUPLICATE) {
+            } else if (file.getFileProcessingStatus() == FileProcessingStatus.DUPLICATE) {
                 skippedDuplicateCount++;
             }
             // If it's in none of the above states, it must have completed successfully.
@@ -191,7 +174,8 @@ public class JobLifecycleScheduler {
                 successCount++;
             }
         }
-        return new JobStatusSummary(files.size(), successCount, ignoredCount, skippedDuplicateCount, failedCount, firstErrorMessage);
+        return new JobStatusSummary(files.size(), successCount, ignoredCount, skippedDuplicateCount, failedCount,
+                                    firstErrorMessage);
     }
 
     /**
@@ -212,5 +196,16 @@ public class JobLifecycleScheduler {
             parts.add(summary.skippedDuplicateCount() + " skipped as duplicates");
         }
         return "Summary: " + String.join(", ", parts) + ".";
+    }
+
+    /**
+     * A private record to hold a detailed, aggregated status summary of a processing job.
+     */
+    private record JobStatusSummary(int totalFileCount,
+                                    int successCount,
+                                    int ignoredCount,
+                                    int skippedDuplicateCount,
+                                    int failedCount,
+                                    String firstErrorMessage) {
     }
 }

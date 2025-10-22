@@ -24,18 +24,15 @@ public class JodConverterConfig {
      *                             into this array.
      * @param taskExecutionTimeout The maximum time in milliseconds a single conversion task is allowed to run
      *                             before it is terminated.
+     *
      * @return A fully configured and managed {@link LocalOfficeManager} instance.
      */
     @Bean(initMethod = "start", destroyMethod = "stop")
-    public LocalOfficeManager localOfficeManager(
-            @Value("${app.jodconverter.office.home}") String officeHome,
-            @Value("${app.jodconverter.office.port-numbers}") int[] portNumbers,
-            @Value("${app.jodconverter.office.task-execution-timeout}") long taskExecutionTimeout
-    ) {
-        return LocalOfficeManager.builder()
-                .officeHome(officeHome)
-                .portNumbers(portNumbers)
-                .taskExecutionTimeout(taskExecutionTimeout)
-                .build();
+    public LocalOfficeManager localOfficeManager(@Value("${app.jodconverter.office.home}") String officeHome,
+                                                 @Value("${app.jodconverter.office.port-numbers}") int[] portNumbers,
+                                                 @Value("${app.jodconverter.office.task-execution-timeout}")
+                                                 long taskExecutionTimeout) {
+        return LocalOfficeManager.builder().officeHome(officeHome).portNumbers(portNumbers)
+                                 .taskExecutionTimeout(taskExecutionTimeout).build();
     }
 }

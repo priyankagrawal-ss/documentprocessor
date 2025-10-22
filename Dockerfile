@@ -8,13 +8,14 @@ RUN gradle build --no-daemon -x test
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
-# Install runtime dependencies including LibreOffice AND Ghostscript
+# Install runtime dependencies including LibreOffice, Ghostscript, AND qpdf
 RUN apt-get update && \
     apt-get install -y \
         libreoffice \
         libreoffice-java-common \
         fonts-liberation2 \
         ghostscript \
+        qpdf \
         --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 

@@ -33,9 +33,7 @@ public class GXApiClientConfiguration {
     @Bean("gxWebClient")
     public WebClient groundXWebClient() {
         log.info("Initializing GroundX WebClient with base URL: {}", baseUrl);
-        return WebClient.builder()
-                .baseUrl(baseUrl)
-                .build();
+        return WebClient.builder().baseUrl(baseUrl).build();
     }
 
     /**

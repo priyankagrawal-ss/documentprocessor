@@ -14,7 +14,9 @@ public interface JsonSerializer {
      *
      * @param object The Java object to serialize.
      * @param <T>    The type of the Java object.
+     *
      * @return The JSON representation of the object as a string.
+     *
      * @throws com.eyelevel.fraudx.exception.JsonParsingException if an error occurs during JSON
      *                                                            serialization.
      */
@@ -26,7 +28,9 @@ public interface JsonSerializer {
      * @param object      The Java object to serialize.
      * @param prettyPrint whether to format the JSON with indentation and line breaks.
      * @param <T>         The type of the Java object.
+     *
      * @return The JSON representation of the object as a string.
+     *
      * @throws com.eyelevel.fraudx.exception.JsonParsingException if an error occurs during JSON
      *                                                            serialization.
      */

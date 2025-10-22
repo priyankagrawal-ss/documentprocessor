@@ -1,55 +1,84 @@
+server:
+  port: ${APP_PORT}
+  servlet:
+    context-path: /api/document-processor
+
 spring:
+  profiles:
+    active: ${ACTIVE_PROFILE}
   application:
     name: ${SPRING_APPLICATION_NAME}
   datasource:
+    hikari:
+      maximum-pool-size: ${DB_CONN_MAX_POOL_SIZE}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS}
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   jpa:
+    mapping-resources:
+      - jpa-queries/metrics-queries.xml
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      ddl-auto: none
     properties:
       hibernate:
-        dialect: ${SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT}
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 app:
+  jodconverter:
+    office:
+      home: ${APP_JOD_CONVERTER_OFFICE_HOME}
+      port-numbers: ${APP_JOD_CONVERTER_PORT_NUMBERS}
+      task-execution-timeout: ${APP_JOD_CONVERTER_TASK_EXE_TIMEOUT_MS}
   processing:
-    max-file-size: ${APP_PROCESSING_MAX_FILE_SIZE}
+    max-file-size: ${APP_PROCESSING_FILE_MAX_BYTES_SIZE}
     max-pages: ${APP_PROCESSING_MAX_PAGES}
     pdf:
       optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
+      qpdf:
+        retry:
+          attempts: ${APP_PROCESSING_PDF_QPDF_RETRY_ATTEMPTS}
+          delay-ms: ${APP_PROCESSING_PDF_QPDF_RETRY_DELAY_MS}
       ghostscript:
         preset: ${APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET}
         optimization-timeout-minutes: ${APP_PROCESSING_PDF_GHOSTSCRIPT_OPTIMIZATION_TIMEOUT_MINUTES}
         retry:
           attempts: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_ATTEMPTS}
-          delay-seconds: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_DELAY_SECONDS}
+          delay-ms: ${APP_PROCESSING_PDF_GHOSTSCRIPT_RETRY_DELAY_MS}
     libreoffice:
       retry:
         attempts: ${APP_PROCESSING_LIBREOFFICE_RETRY_ATTEMPTS}
         delay-ms: ${APP_PROCESSING_LIBREOFFICE_RETRY_DELAY_MS}
     msg-handler:
       retry:
-        attempts: ${APP_PROCESSING_MSGHANDLER_RETRY_ATTEMPTS}
-        delay-ms: ${APP_PROCESSING_MSGHANDLER_RETRY_DELAY_MS}
+        attempts: ${APP_PROCESSING_MSG_HANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_MSG_HANDLER_RETRY_DELAY_MS}
     zip-handler:
+      concurrency-limit: ${APP_PROCESSING_ZIP_HANDLER_CONCURRENCY_LIMIT}
+      temp-dir: ${APP_PROCESSING_ZIP_HANDLER_TEMP_DIR}
       retry:
-        attempts: ${APP_PROCESSING_ZIPHANDLER_RETRY_ATTEMPTS}
-        delay-ms: ${APP_PROCESSING_ZIPHANDLER_RETRY_DELAY_MS}
+        attempts: ${APP_PROCESSING_ZIP_HANDLER_RETRY_ATTEMPTS}
+        delay-ms: ${APP_PROCESSING_ZIP_HANDLER_RETRY_DELAY_MS}
+
   scheduler:
-    gx-doc-upload: ${APP_SCHEDULER_GXDOCUPLOAD}
-    fetch-doc-upload-status: ${APP_SCHEDULER_FETCHDOCUPLOADSTATUS}
-    stale-job: ${APP_SCHEDULER_STALEJOB}
+    gx-doc-upload: ${APP_SCHEDULER_GX_DOC_UPLOAD}
+    fetch-doc-upload-status: ${APP_SCHEDULER_FETCH_DOC_UPLOAD_STATUS}
+    stale-job: ${APP_SCHEDULER_STALE_JOB}
     stale-job-cleanup-hours: ${APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS}
-    job-completion-check: ${APP_SCHEDULER_JOBCOMPLETIONCHECK}
+    job-completion-check: ${APP_SCHEDULER_JOB_COMPLETION_CHECK}
+
   gx-client:
-    baseurl: ${APP_GXCLIENT_BASEURL}
-    auth-key-name: ${APP_GXCLIENT_AUTHKEYNAME}
-    auth-key-value: ${APP_GXCLIENT_AUTHKEYVALUE}
+    baseurl: ${APP_GX_CLIENT_BASEURL}
+    auth-key-name: ${APP_GX_CLIENT_AUTH_KEY_NAME}
+    auth-key-value: ${APP_GX_CLIENT_AUTH_KEY_VALUE}
     endpoint:
-      upload-file: ${APP_GXCLIENT_ENDPOINT_UPLOADFILE}
-      fetch-status: ${APP_GXCLIENT_ENDPOINT_FETCHSTATUS}
-      create-bucket: ${APP_GXCLIENT_ENDPOINT_CREATEBUCKET}
+      upload-file: ${APP_GX_CLIENT_ENDPOINT_UPLOAD_FILE}
+      fetch-status: ${APP_GX_CLIENT_ENDPOINT_FETCH_STATUS}
+      create-bucket: ${APP_GX_CLIENT_ENDPOINT_CREATE_BUCKET}
   gx:
     max-process: ${APP_GX_MAX_CONCURRENT_UPLOADS}
 

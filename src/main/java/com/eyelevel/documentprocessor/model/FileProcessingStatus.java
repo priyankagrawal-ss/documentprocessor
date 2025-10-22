@@ -23,7 +23,7 @@ public enum FileProcessingStatus {
     /**
      * Processing was skipped because the file's content was identical to an already completed file.
      */
-    SKIPPED_DUPLICATE,
+    DUPLICATE,
     /**
      * Processing was skipped due to a validation error (e.g., zero-byte file, unsupported type).
      */

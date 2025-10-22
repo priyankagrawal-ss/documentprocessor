@@ -8,10 +8,5 @@ package com.eyelevel.documentprocessor.dto.gx.docupload;
  * @param fileType  The MIME type of the file.
  * @param sourceUrl The source URL of the file.
  */
-public record GXDocumentUploadParameters(
-        Integer bucketId,
-        String fileName,
-        String fileType,
-        String sourceUrl
-) {
+public record GXDocumentUploadParameters(Integer bucketId, String fileName, String fileType, String sourceUrl) {
 }

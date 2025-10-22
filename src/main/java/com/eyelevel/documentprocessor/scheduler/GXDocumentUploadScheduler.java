@@ -7,7 +7,7 @@ import com.eyelevel.documentprocessor.exception.apiclient.ApiException;
 import com.eyelevel.documentprocessor.model.GxMaster;
 import com.eyelevel.documentprocessor.model.GxStatus;
 import com.eyelevel.documentprocessor.repository.GxMasterRepository;
-import com.eyelevel.documentprocessor.service.S3StorageService;
+import com.eyelevel.documentprocessor.service.s3.S3StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,21 +56,21 @@ public class GXDocumentUploadScheduler {
 
             if (gxProcessingCount >= maxConcurrentGxProcesses) {
                 log.info("GX processing limit reached (in progress: {}, limit: {}). Skipping this run.",
-                        gxProcessingCount, maxConcurrentGxProcesses);
+                         gxProcessingCount, maxConcurrentGxProcesses);
                 return;
             }
 
             final int availableSlots = (int) (maxConcurrentGxProcesses - gxProcessingCount);
             final List<GxMaster> documentsToUpload = gxMasterRepository.findByGxStatusOrderByCreatedAtAsc(
-                    GxStatus.QUEUED_FOR_UPLOAD, PageRequest.of(0, availableSlots)
-            );
+                    GxStatus.QUEUED_FOR_UPLOAD, PageRequest.of(0, availableSlots));
 
             if (CollectionUtils.isEmpty(documentsToUpload)) {
                 log.info("No documents are currently queued for upload to GX. Scheduler run is complete.");
                 return;
             }
 
-            log.info("Found {} documents to upload to GX. Available slots: {}", documentsToUpload.size(), availableSlots);
+            log.info("Found {} documents to upload to GX. Available slots: {}", documentsToUpload.size(),
+                     availableSlots);
             final List<GxMaster> updatedMasters = new ArrayList<>();
             for (final GxMaster gxMaster : documentsToUpload) {
                 processDocumentUpload(gxMaster);
@@ -92,12 +92,10 @@ public class GXDocumentUploadScheduler {
     private void processDocumentUpload(final GxMaster gxMaster) {
         try {
             final URL downloadUrl = s3StorageService.generatePresignedDownloadUrl(gxMaster.getFileLocation());
-            final GXDocumentUploadParameters uploadParams = new GXDocumentUploadParameters(
-                    gxMaster.getGxBucketId(),
-                    gxMaster.getProcessedFileName(),
-                    gxMaster.getExtension(),
-                    downloadUrl.toExternalForm()
-            );
+            final GXDocumentUploadParameters uploadParams = new GXDocumentUploadParameters(gxMaster.getGxBucketId(),
+                                                                                           gxMaster.getProcessedFileName(),
+                                                                                           gxMaster.getExtension(),
+                                                                                           downloadUrl.toExternalForm());
 
             final GXUploadDocumentResponse response = gxApiClient.uploadDocument(uploadParams);
             updateMasterFromApiResponse(response, gxMaster);
@@ -127,7 +125,7 @@ public class GXDocumentUploadScheduler {
             gxMaster.setGxProcessId(response.ingest().processId());
             gxMaster.setGxStatus(GxStatus.convertByValue(response.ingest().status()));
             log.info("Successfully initiated GX upload for GxMaster ID {}. Process ID: {}, Status: {}",
-                    gxMaster.getId(), gxMaster.getGxProcessId(), gxMaster.getGxStatus());
+                     gxMaster.getId(), gxMaster.getGxProcessId(), gxMaster.getGxStatus());
         } else if (StringUtils.hasText(response.message())) {
             gxMaster.setGxStatus(GxStatus.ERROR);
             gxMaster.setErrorMessage(response.message());

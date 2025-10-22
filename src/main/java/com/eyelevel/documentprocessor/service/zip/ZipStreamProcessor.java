@@ -1,115 +1,164 @@
 package com.eyelevel.documentprocessor.service.zip;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * A reusable, stateless component for processing ZIP streams. It efficiently iterates through
- * ZIP entries one-by-one to maintain a low memory footprint, handles nested ZIP archives recursively,
- * and invokes a functional callback for each valid file.
+ * Handles the low-level processing of a ZIP file stream.
+ * This class is responsible for sequentially reading a ZIP archive, extracting each entry into a temporary file,
+ * calculating its SHA-256 hash, and then passing the details to a consumer for further processing.
+ * It is designed to be a single-threaded, stream-focused component to avoid the complexities of sharing
+ * a ZipInputStream across multiple threads.
  */
 @Slf4j
 @Component
 public class ZipStreamProcessor {
 
-    private static final Set<String> IGNORED_FILES = Set.of("__MACOSX", ".DS_Store", "Thumbs.db");
-    private static final int COPY_BUFFER = 8192;
+    /**
+     * A set of common, ignorable file and directory names often found in ZIP archives,
+     * such as macOS resource forks and Windows thumbnail caches.
+     */
+    private static final Set<String> IGNORED_ENTRIES = Set.of("__MACOSX", ".DS_Store", "Thumbs.db");
 
     /**
-     * Processes a ZIP archive from an InputStream, applying the provided consumer to each valid file.
-     * This method is the primary entry point for the processor.
+     * Processes a ZIP archive from an input stream in a single thread.
+     * <p>
+     * This method sequentially reads each entry from the {@link ZipInputStream}. For each valid entry, it streams
+     * the content into a temporary file on disk while simultaneously calculating its SHA-256 hash. This approach
+     * avoids holding the entire file content in memory.
+     * <p>
+     * Once an entry is fully written to a temporary file and its metadata (path, hash, size) is captured, it is
+     * encapsulated in a {@link ZipEntryWorkItem}. This work item is then passed to the provided {@code workItemConsumer},
+     * which can delegate it to a separate thread pool for parallel processing. This ensures that the I/O-bound
+     * operation of reading the ZIP stream does not block the concurrent processing of its contents.
      *
-     * @param zipStream    The input stream of the ZIP file to process.
-     * @param fileConsumer A BiConsumer that accepts the normalized entry name (path) and a Path
-     *                     to a temporary file containing the entry's content. The temporary file
-     *                     is guaranteed to be deleted after the consumer completes.
-     * @throws IOException if a critical I/O error occurs during stream processing.
+     * @param zipStream        The input stream of the ZIP archive to be processed.
+     * @param tempDir          The directory where temporary files for each ZIP entry will be stored.
+     * @param workItemConsumer A consumer that accepts a {@link ZipEntryWorkItem} for each valid entry,
+     *                         typically to hand it off for parallel processing.
+     *
+     * @throws IOException if an I/O error occurs while reading the ZIP stream or writing to temporary files.
      */
-    public void process(InputStream zipStream, BiConsumer<String, Path> fileConsumer) throws IOException {
-        processEntries(new ZipInputStream(zipStream), fileConsumer);
-    }
+    public void processStream(InputStream zipStream, Path tempDir, Consumer<ZipEntryWorkItem> workItemConsumer)
+    throws IOException {
+        // Use a try-with-resources block to ensure the ZipInputStream is properly closed.
+        try (ZipInputStream zis = new ZipInputStream(zipStream)) {
+            ZipEntry currentEntry;
+            // Sequentially read each entry from the ZIP stream until there are no more.
+            while ((currentEntry = zis.getNextEntry()) != null) {
+                // Normalize path separators to forward slashes for consistency.
+                final String normalizedPath = currentEntry.getName().replace('\\', '/');
 
-    /**
-     * Recursively iterates through ZIP entries, streaming each to a temporary file and invoking the consumer.
-     */
-    private void processEntries(ZipInputStream zis, BiConsumer<String, Path> fileConsumer) throws IOException {
-        ZipEntry entry;
-        while ((entry = zis.getNextEntry()) != null) {
-            String normalizedPath = entry.getName().replace('\\', '/');
-
-            if (shouldSkipEntry(entry, normalizedPath)) {
-                zis.closeEntry();
-                continue;
-            }
-
-            Path tempFile = streamEntryToTempFile(zis, normalizedPath);
-            try {
-                if (Files.size(tempFile) == 0) {
-                    log.debug("Skipping empty file entry: {}", normalizedPath);
-                    continue;
+                // Filter out entries that should be ignored, like directories or metadata files.
+                if (shouldSkipEntry(currentEntry, normalizedPath)) {
+                    continue; // The stream is advanced to the next entry on the next loop iteration.
                 }
 
-                if (FilenameUtils.isExtension(normalizedPath.toLowerCase(), "zip")) {
-                    log.info("Found nested ZIP archive, beginning recursive processing: {}", normalizedPath);
-                    try (InputStream nestedStream = Files.newInputStream(tempFile)) {
-                        process(nestedStream, fileConsumer);
+                Path tempFile = null;
+                try {
+                    // Create a temporary file to buffer the entry's content from the stream.
+                    tempFile = Files.createTempFile(tempDir, "zip-entry-", ".tmp");
+                    // Initialize the SHA-256 message digest for hash calculation.
+                    MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+                    long fileSize;
+
+                    // Stream the entry's content into the temp file. The DigestOutputStream calculates the hash
+                    // as the data is being written, avoiding a second read pass.
+                    try (OutputStream fileOut = Files.newOutputStream(tempFile);
+                         DigestOutputStream digestOut = new DigestOutputStream(fileOut, sha256)) {
+                        fileSize = zis.transferTo(digestOut);
                     }
-                    log.info("Finished processing nested ZIP archive: {}", normalizedPath);
-                } else {
-                    fileConsumer.accept(normalizedPath, tempFile);
+
+                    // Only process entries that have content.
+                    if (fileSize > 0) {
+                        // Finalize the hash calculation and convert it to a hex string.
+                        String fileHash = Hex.encodeHexString(sha256.digest());
+                        // Create a work item containing all necessary metadata for downstream processing.
+                        ZipEntryWorkItem workItem = new ZipEntryWorkItem(normalizedPath, tempFile, fileHash, fileSize);
+                        // Pass the completed work item to the consumer for concurrent processing.
+                        workItemConsumer.accept(workItem);
+                    } else {
+                        // If the file is empty, delete the temporary file immediately to save space.
+                        Files.delete(tempFile);
+                    }
+
+                } catch (NoSuchAlgorithmException e) {
+                    // This exception is highly unlikely as SHA-256 is a standard algorithm.
+                    throw new RuntimeException("SHA-256 algorithm not available.", e);
+                } catch (IOException e) {
+                    // In case of an error, attempt to clean up the temporary file if it was created.
+                    if (tempFile != null) {
+                        try {
+                            Files.deleteIfExists(tempFile);
+                        } catch (IOException cleanupEx) {
+                            // Suppress the cleanup exception to prioritize the original I/O error.
+                            e.addSuppressed(cleanupEx);
+                        }
+                    }
+                    log.error("Failed to stream ZIP entry '{}' to temporary file.", normalizedPath, e);
+                    throw e; // Re-throw the exception to indicate failure of the overall process.
+                } finally {
+                    // Ensure the current entry is closed before moving to the next one.
+                    zis.closeEntry();
                 }
-            } finally {
-                Files.deleteIfExists(tempFile);
-                zis.closeEntry();
             }
         }
     }
 
     /**
-     * Determines if a given ZIP entry should be skipped based on its type or name.
+     * Determines whether a given ZIP entry should be skipped based on its name and type.
+     * <p>
+     * This method filters out:
+     * <ul>
+     *     <li>Directories.</li>
+     *     <li>System-specific metadata files (e.g., '__MACOSX', '.DS_Store').</li>
+     *     <li>Files starting with '._' which are often AppleDouble resource forks.</li>
+     * </ul>
+     *
+     * @param entry          The {@link ZipEntry} to evaluate.
+     * @param normalizedPath The normalized path of the entry.
+     *
+     * @return {@code true} if the entry should be skipped, {@code false} otherwise.
      */
-    private boolean shouldSkipEntry(ZipEntry entry, String normalizedPath) {
+    private boolean shouldSkipEntry(final ZipEntry entry, final String normalizedPath) {
+        // Skip directories.
         if (entry.isDirectory() || normalizedPath.endsWith("/")) {
             return true;
         }
-
-        String fileName = FilenameUtils.getName(normalizedPath);
-        String rootDir = normalizedPath.contains("/") ? normalizedPath.substring(0, normalizedPath.indexOf('/')) : normalizedPath;
-
-        if (IGNORED_FILES.contains(fileName) || IGNORED_FILES.contains(rootDir)) {
-            log.debug("Ignoring system or metadata entry: {}", normalizedPath);
-            return true;
-        }
-        return false;
+        // Extract the file name and the top-level directory name.
+        final String fileName = FilenameUtils.getName(normalizedPath);
+        final String rootDir = normalizedPath.contains("/")
+                               ? normalizedPath.substring(0, normalizedPath.indexOf('/'))
+                               : normalizedPath;
+        // Skip if the file name, root directory, or prefix matches any ignored patterns.
+        return IGNORED_ENTRIES.contains(fileName) || IGNORED_ENTRIES.contains(rootDir) || fileName.startsWith("._");
     }
 
     /**
-     * Safely streams a ZIP entry's content to a new temporary file.
+     * A record to encapsulate the metadata of a processed ZIP entry.
+     * This object serves as a data transfer object, containing all the necessary information
+     * for a worker thread to process a single file extracted from the ZIP archive.
+     *
+     * @param normalizedPath The cleaned, forward-slash-separated path of the entry within the ZIP archive.
+     * @param tempFilePath   The {@link Path} to the temporary file on disk where the entry's content is stored.
+     * @param sha256Hash     The SHA-256 hash of the file content, represented as a hexadecimal string.
+     * @param fileSize       The size of the file in bytes.
      */
-    private Path streamEntryToTempFile(ZipInputStream zis, String entryName) throws IOException {
-        String suffix = entryName.contains(".") ? entryName.substring(entryName.lastIndexOf('.')) : ".bin";
-        Path tempFile = Files.createTempFile("zip-entry-", suffix);
-
-        try (var out = Files.newOutputStream(tempFile)) {
-            byte[] buf = new byte[COPY_BUFFER];
-            int read;
-            while ((read = zis.read(buf)) != -1) {
-                out.write(buf, 0, read);
-            }
-        } catch (IOException e) {
-            Files.deleteIfExists(tempFile);
-            throw e;
-        }
-        return tempFile;
+    public record ZipEntryWorkItem(String normalizedPath, Path tempFilePath, String sha256Hash, long fileSize) {
     }
 }

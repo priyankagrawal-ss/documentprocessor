@@ -17,11 +17,6 @@ public record GXUploadFileRequest(List<DocumentRequest> documents) {
      * @param fileType  The MIME type of the file.
      * @param sourceUrl The source URL of the file.
      */
-    public record DocumentRequest(
-            Integer bucketId,
-            String fileName,
-            String fileType,
-            String sourceUrl
-    ) {
+    public record DocumentRequest(Integer bucketId, String fileName, String fileType, String sourceUrl) {
     }
 }

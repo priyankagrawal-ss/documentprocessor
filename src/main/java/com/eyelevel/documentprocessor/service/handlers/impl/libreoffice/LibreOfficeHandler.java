@@ -37,7 +37,8 @@ public class LibreOfficeHandler implements FileHandler {
     }
 
     @Override
-    public List<ExtractedFileItem> handle(InputStream inputStream, FileMaster context) throws IOException, FileConversionException, OfficeException {
+    public List<ExtractedFileItem> handle(InputStream inputStream, FileMaster context)
+    throws IOException, FileConversionException, OfficeException {
         long jobId = context.getProcessingJob().getId();
         long fileMasterId = context.getId();
         String fileName = context.getFileName();

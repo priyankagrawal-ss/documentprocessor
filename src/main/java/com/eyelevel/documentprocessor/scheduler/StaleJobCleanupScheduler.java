@@ -39,8 +39,7 @@ public class StaleJobCleanupScheduler {
         log.info("Running stale job cleanup. Finding jobs in PENDING_UPLOAD created before {}.", threshold);
 
         final List<ProcessingJob> staleJobs = processingJobRepository.findByStatusAndCreatedAtBefore(
-                ProcessingStatus.PENDING_UPLOAD, threshold
-        );
+                ProcessingStatus.PENDING_UPLOAD, threshold);
 
         if (CollectionUtils.isEmpty(staleJobs)) {
             log.info("No stale jobs found.");
@@ -50,8 +49,8 @@ public class StaleJobCleanupScheduler {
         log.warn("Found {} stale jobs to mark as FAILED.", staleJobs.size());
         for (final ProcessingJob job : staleJobs) {
             job.setStatus(ProcessingStatus.FAILED);
-            job.setErrorMessage(String.format(
-                    "Upload was not completed by the client within the %d-hour time limit.", staleThresholdHours));
+            job.setErrorMessage(String.format("Upload was not completed by the client within the %d-hour time limit.",
+                                              staleThresholdHours));
             processingJobRepository.save(job);
         }
         log.info("Finished stale job cleanup. Marked {} jobs as FAILED.", staleJobs.size());

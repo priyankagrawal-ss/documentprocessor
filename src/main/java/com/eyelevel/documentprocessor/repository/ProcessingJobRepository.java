@@ -22,6 +22,7 @@ public interface ProcessingJobRepository extends JpaRepository<ProcessingJob, Lo
      *
      * @param status    The status to search for (e.g., {@code PENDING_UPLOAD}).
      * @param threshold The timestamp to compare the creation date against.
+     *
      * @return A list of matching {@link ProcessingJob} entities.
      */
     List<ProcessingJob> findByStatusAndCreatedAtBefore(ProcessingStatus status, LocalDateTime threshold);
@@ -32,6 +33,7 @@ public interface ProcessingJobRepository extends JpaRepository<ProcessingJob, Lo
      * to find active jobs that need a completion check.
      *
      * @param statuses A list of statuses to search for (e.g., {@code QUEUED}, {@code PROCESSING}).
+     *
      * @return A list of matching {@link ProcessingJob} entities.
      */
     List<ProcessingJob> findByStatusIn(Set<ProcessingStatus> statuses);

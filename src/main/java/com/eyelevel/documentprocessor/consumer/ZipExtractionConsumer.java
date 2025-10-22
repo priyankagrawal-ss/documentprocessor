@@ -2,8 +2,8 @@ package com.eyelevel.documentprocessor.consumer;
 
 import com.eyelevel.documentprocessor.exception.DocumentProcessingException;
 import com.eyelevel.documentprocessor.exception.MessageProcessingFailedException;
-import com.eyelevel.documentprocessor.service.ZipIngestionService;
 import com.eyelevel.documentprocessor.service.lifecycle.JobLifecycleManager;
+import com.eyelevel.documentprocessor.service.zip.ZipIngestionService;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +39,8 @@ public class ZipExtractionConsumer {
     public void processZipMessage(@Payload final Map<String, Object> message) {
         final Object idObject = message.get("zipMasterId");
         if (!(idObject instanceof Number)) {
-            log.error("[FATAL] SQS message is invalid or missing 'zipMasterId'. Message will be dropped. Payload: {}", message);
+            log.error("[FATAL] SQS message is invalid or missing 'zipMasterId'. Message will be dropped. Payload: {}",
+                      message);
             return;
         }
 
@@ -54,7 +55,9 @@ public class ZipExtractionConsumer {
             jobLifecycleManager.failJobForZipExtraction(zipMasterId, e.getMessage());
         } catch (Exception e) {
             // This is a potentially transient failure. Mark as failed and trigger SQS retry.
-            log.error("A transient error occurred processing ZipMaster ID: {}. Marking job as FAILED and triggering retry.", zipMasterId, e);
+            log.error(
+                    "A transient error occurred processing ZipMaster ID: {}. Marking job as FAILED and triggering retry.",
+                    zipMasterId, e);
             jobLifecycleManager.failJobForZipExtraction(zipMasterId, e.getMessage());
             throw new MessageProcessingFailedException("Failed to process ZIP for ZipMaster ID " + zipMasterId, e);
         }

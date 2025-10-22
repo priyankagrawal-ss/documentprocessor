@@ -17,29 +17,20 @@ public record GXBucket(Bucket bucket) {
      * Contains the detailed information of a GX bucket.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Bucket(
-            @JsonProperty(value = "bucketId", required = true)
-            Integer bucketId,
+    public record Bucket(@JsonProperty(value = "bucketId", required = true) Integer bucketId,
 
-            @JsonProperty(value = "created")
-            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-            ZonedDateTime createdAt,
+                         @JsonProperty(value = "created") @JsonFormat(shape = JsonFormat.Shape.STRING,
+                                                                      pattern = "yyyy-MM-dd'T'HH:mm:ssXXX") ZonedDateTime createdAt,
 
-            @JsonProperty(value = "fileCount")
-            Integer fileCount,
+                         @JsonProperty(value = "fileCount") Integer fileCount,
 
-            @JsonProperty(value = "fileSize")
-            String fileSize,
+                         @JsonProperty(value = "fileSize") String fileSize,
 
-            @JsonProperty(value = "name")
-            String name,
+                         @JsonProperty(value = "name") String name,
 
-            String claimantName,
-            String claimId,
+                         String claimantName, String claimId,
 
-            @JsonProperty(value = "updated")
-            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
-            ZonedDateTime updatedAt
-    ) {
+                         @JsonProperty(value = "updated") @JsonFormat(shape = JsonFormat.Shape.STRING,
+                                                                      pattern = "yyyy-MM-dd'T'HH:mm:ssXXX") ZonedDateTime updatedAt) {
     }
 }

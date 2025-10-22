@@ -49,7 +49,9 @@ public abstract class ApiClient {
      * any exceptions.
      *
      * @param apiRequest The API request to execute. Must not be null.
+     *
      * @return The API response.
+     *
      * @throws ApiException If there is an error during the API call.
      */
     protected ApiResponse call(@NonNull ApiRequest apiRequest) {
@@ -63,12 +65,8 @@ public abstract class ApiClient {
             configureBody(apiRequest, requestBodySpec);
             log.debug("requestBodySpec properties : {}", requestBodySpec.getClass());
 
-            ApiResponse apiResponse =
-                    requestBodySpec
-                            .exchangeToMono(this::handleResponse)
-                            .timeout(DEFAULT_TIMEOUT)
-                            .onErrorMap(this::mapException)
-                            .block();
+            ApiResponse apiResponse = requestBodySpec.exchangeToMono(this::handleResponse).timeout(DEFAULT_TIMEOUT)
+                                                     .onErrorMap(this::mapException).block();
             log.debug("Received apiResponse: {}", apiResponse);
             return apiResponse;
 
@@ -84,25 +82,21 @@ public abstract class ApiClient {
 
     public <T> Flux<ServerSentEvent<T>> consumeStream(ApiRequest apiRequest,
                                                       Consumer<ServerSentEvent<T>> chunkReceiveEvent,
-                                                      Consumer<Throwable> errorConsumer,
-                                                      Runnable completionEvent,
+                                                      Consumer<Throwable> errorConsumer, Runnable completionEvent,
                                                       ParameterizedTypeReference<ServerSentEvent<T>> parameterizedTypeReference) {
         log.info("Starting to consume SSE stream from: {}", apiRequest.getPath());
         try {
             MediaType acceptMediaType = Optional.ofNullable(apiRequest.getAcceptMediaType())
-                    .orElse(MediaType.TEXT_EVENT_STREAM);
+                                                .orElse(MediaType.TEXT_EVENT_STREAM);
 
             WebClient.RequestBodySpec requestBodySpec = configureRequest(apiRequest);
             requestBodySpec.accept(acceptMediaType);
             configureHeaders(apiRequest, requestBodySpec);
             configureBody(apiRequest, requestBodySpec);
 
-            return requestBodySpec
-                    .retrieve()
-                    .bodyToFlux(parameterizedTypeReference)
-                    .onBackpressureBuffer(100, BufferOverflowStrategy.DROP_OLDEST)
-                    .doOnNext(chunkReceiveEvent)
-                    .doOnError(errorConsumer).doOnComplete(completionEvent);
+            return requestBodySpec.retrieve().bodyToFlux(parameterizedTypeReference)
+                                  .onBackpressureBuffer(100, BufferOverflowStrategy.DROP_OLDEST)
+                                  .doOnNext(chunkReceiveEvent).doOnError(errorConsumer).doOnComplete(completionEvent);
         } catch (Exception e) {
             log.error("Exception during streaming API call");
             Throwable mappedException = mapException(e);
@@ -116,6 +110,7 @@ public abstract class ApiClient {
      * WebClientResponseException}, the HTTP status code.
      *
      * @param error The throwable error.
+     *
      * @return A specific {@link RuntimeException} representing the error.
      */
     private RuntimeException mapException(Throwable error) {
@@ -128,10 +123,10 @@ public abstract class ApiClient {
             log.debug("Map exception: {}", newException);
             return newException;
 
-        } else if (error instanceof WebClientRequestException
-                   || error instanceof ConnectException
-                   || error instanceof java.net.UnknownHostException) {
-            ServiceUnavailableException exception = new ServiceUnavailableException("Failed to connect to external service: " + error.getMessage());
+        } else if (error instanceof WebClientRequestException || error instanceof ConnectException ||
+                   error instanceof java.net.UnknownHostException) {
+            ServiceUnavailableException exception = new ServiceUnavailableException(
+                    "Failed to connect to external service: " + error.getMessage());
             log.error("an exception to do the service is unavailable ", exception);
             return exception;
 
@@ -142,13 +137,13 @@ public abstract class ApiClient {
 
         } else if (error instanceof WebClientException) {
             ApiException exception = new ApiException("Unexpected WebClient error: " + error.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR.value());
+                                                      HttpStatus.INTERNAL_SERVER_ERROR.value());
             log.error("An error occurred on web client", exception);
             return exception;
 
         } else {
             ApiException exception = new ApiException("Internal API client error: " + error.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR.value());
+                                                      HttpStatus.INTERNAL_SERVER_ERROR.value());
             log.error("An error occurred on API client", exception);
             return exception;
         }
@@ -159,23 +154,19 @@ public abstract class ApiClient {
      * variables are added to the URI.
      *
      * @param apiRequest The API request containing the configuration.
+     *
      * @return A {@link WebClient.RequestBodySpec} configured with the method and URI.
      */
     private WebClient.RequestBodySpec configureRequest(ApiRequest apiRequest) {
         log.debug("configure Request {} with path : {}", apiRequest.getMethod(), apiRequest.getPath());
-        WebClient.RequestBodySpec requestBodySpec =
-                webClient
-                        .method(apiRequest.getMethod())
-                        .uri(
-                                uriBuilder -> {
-                                    uriBuilder.path(apiRequest.getPath());
+        WebClient.RequestBodySpec requestBodySpec = webClient.method(apiRequest.getMethod()).uri(uriBuilder -> {
+            uriBuilder.path(apiRequest.getPath());
 
-                                    Optional.ofNullable(apiRequest.getQueryParams())
-                                            .ifPresent(params -> params.forEach(uriBuilder::queryParam));
+            Optional.ofNullable(apiRequest.getQueryParams())
+                    .ifPresent(params -> params.forEach(uriBuilder::queryParam));
 
-                                    return uriBuilder.build(
-                                            Optional.ofNullable(apiRequest.getPathVariables()).orElse(Collections.emptyMap()));
-                                });
+            return uriBuilder.build(Optional.ofNullable(apiRequest.getPathVariables()).orElse(Collections.emptyMap()));
+        });
         log.trace("parameters for configureRequest: {}", apiRequest.getPath());
 
         return requestBodySpec;
@@ -188,8 +179,7 @@ public abstract class ApiClient {
      * @param apiRequest      The API request containing the header configuration.
      * @param requestBodySpec The request body specification to configure.
      */
-    private void configureHeaders(
-            ApiRequest apiRequest, WebClient.RequestBodySpec requestBodySpec) {
+    private void configureHeaders(ApiRequest apiRequest, WebClient.RequestBodySpec requestBodySpec) {
         log.debug("configure Headers: {}", apiRequest.getHeaders());
         // Apply authentication headers
         authentication.applyAuthentication(apiRequest.getHeaders());
@@ -197,21 +187,16 @@ public abstract class ApiClient {
 
         // Apply custom headers from HeaderConfig
         if (headerConfig != null && headerConfig.getHeaders() != null) {
-            headerConfig
-                    .getHeaders()
-                    .forEach(
-                            header -> {
-                                requestBodySpec.header(header.getName(), header.getValue());
-                            });
+            headerConfig.getHeaders().forEach(header -> {
+                requestBodySpec.header(header.getName(), header.getValue());
+            });
         }
 
         // Apply headers from the ApiRequest
-        Optional.ofNullable(apiRequest.getHeaders())
-                .ifPresent(
-                        headers -> {
-                            headers.forEach(requestBodySpec::header);
-                            log.trace("requestBodySpec headers value: {}", headers);
-                        });
+        Optional.ofNullable(apiRequest.getHeaders()).ifPresent(headers -> {
+            headers.forEach(requestBodySpec::header);
+            log.trace("requestBodySpec headers value: {}", headers);
+        });
 
         // Set the accept media type
         Optional.ofNullable(apiRequest.getAcceptMediaType()).ifPresent(requestBodySpec::accept);
@@ -225,15 +210,15 @@ public abstract class ApiClient {
      * @param requestBodySpec The request body specification to configure.
      */
     private void configureBody(ApiRequest apiRequest, WebClient.RequestBodySpec requestBodySpec) {
-        log.debug("Configuring request body, ApiRequest has a body: {} and apiRequest has a contentType: {}", apiRequest.getBody() != null, apiRequest.getContentType());
+        log.debug("Configuring request body, ApiRequest has a body: {} and apiRequest has a contentType: {}",
+                  apiRequest.getBody() != null, apiRequest.getContentType());
         if (apiRequest.getBody() == null) {
             log.debug("There is no body here");
             return;
         }
 
         // Determine content type
-        MediaType contentType =
-                Optional.ofNullable(apiRequest.getContentType()).orElse(MediaType.APPLICATION_JSON);
+        MediaType contentType = Optional.ofNullable(apiRequest.getContentType()).orElse(MediaType.APPLICATION_JSON);
         requestBodySpec.contentType(contentType);
         log.trace("ContentType = {} ", contentType);
         // Set the body
@@ -251,6 +236,7 @@ public abstract class ApiClient {
      * response is an error (non-2xx status code), an appropriate exception is created.
      *
      * @param response The client response.
+     *
      * @return A {@link Mono} emitting the {@link ApiResponse}.
      */
     private Mono<ApiResponse> handleResponse(ClientResponse response) {
@@ -278,37 +264,22 @@ public abstract class ApiClient {
      * @param acceptType The accept media type from the response.
      * @param statusCode The HTTP status code.
      * @param timestamp  The timestamp of the response.
+     *
      * @return A {@link Mono} emitting the {@link ApiResponse}.
      */
-    private Mono<ApiResponse> handleSuccessResponse(
-            ClientResponse response,
-            HttpHeaders headers,
-            MediaType acceptType,
-            int statusCode,
-            Instant timestamp) {
+    private Mono<ApiResponse> handleSuccessResponse(ClientResponse response, HttpHeaders headers, MediaType acceptType,
+                                                    int statusCode, Instant timestamp) {
         log.debug("Handling successful response, status code: {}", statusCode);
 
-        return response
-                .bodyToMono(byte[].class)
-                .map(
-                        data -> {
-                            ApiResponse apiResponse =
-                                    ApiResponse.builder()
-                                            .data(data)
-                                            .acceptType(acceptType)
-                                            .headers(headers)
-                                            .statusCode(statusCode)
-                                            .timestamp(timestamp)
-                                            .error(null)
-                                            .build();
-                            log.debug("Api Response  was success  =  {} ", apiResponse.getStatusCode());
-                            return apiResponse;
-                        })
-                .onErrorMap(
-                        error -> {
-                            log.error("Error processing successful response body", error);
-                            return new ApiException("Error processing response: " + error.getMessage(), statusCode);
-                        });
+        return response.bodyToMono(byte[].class).map(data -> {
+            ApiResponse apiResponse = ApiResponse.builder().data(data).acceptType(acceptType).headers(headers)
+                                                 .statusCode(statusCode).timestamp(timestamp).error(null).build();
+            log.debug("Api Response  was success  =  {} ", apiResponse.getStatusCode());
+            return apiResponse;
+        }).onErrorMap(error -> {
+            log.error("Error processing successful response body", error);
+            return new ApiException("Error processing response: " + error.getMessage(), statusCode);
+        });
     }
 
     /**
@@ -317,6 +288,7 @@ public abstract class ApiClient {
      *
      * @param response   The client response.
      * @param statusCode The HTTP status code.
+     *
      * @return A {@link Mono} emitting an error.
      */
     private Mono<ApiResponse> handleErrorResponse(ClientResponse response, int statusCode) {
@@ -333,24 +305,24 @@ public abstract class ApiClient {
      *
      * @param body       The error message from the response body.
      * @param statusCode The HTTP status code.
+     *
      * @return An {@link ApiException} representing the error.
      */
     private ApiException createException(String body, int statusCode) {
         log.debug("Creating exception for status code: {}, body: {}", statusCode, body);
-        ApiException exception =
-                switch (statusCode) {
-                    case 400 -> new BadRequestException(body);
-                    case 401 -> new UnauthorizedException(body);
-                    case 403 -> new ForbiddenException(body);
-                    case 404 -> new NotFoundException(body);
-                    case 409 -> new ConflictException(body);
-                    case 429 -> new TooManyRequestsException(body);
-                    case 500 -> new InternalServerException(body);
-                    case 502 -> new BadGatewayException(body);
-                    case 503 -> new ServiceUnavailableException(body);
-                    case 504 -> new GatewayTimeoutException(body);
-                    default -> new ApiException(body, statusCode);
-                };
+        ApiException exception = switch (statusCode) {
+            case 400 -> new BadRequestException(body);
+            case 401 -> new UnauthorizedException(body);
+            case 403 -> new ForbiddenException(body);
+            case 404 -> new NotFoundException(body);
+            case 409 -> new ConflictException(body);
+            case 429 -> new TooManyRequestsException(body);
+            case 500 -> new InternalServerException(body);
+            case 502 -> new BadGatewayException(body);
+            case 503 -> new ServiceUnavailableException(body);
+            case 504 -> new GatewayTimeoutException(body);
+            default -> new ApiException(body, statusCode);
+        };
         log.warn("Api request failing {}", exception.getMessage());
         return exception;
     }
