@@ -1,0 +1,7 @@
+databaseChangeLog:
+  # The 'include' tag is used to reference other changelog files.
+  # Liquibase will execute them in the order they are listed here.
+  - include:
+      file: db/changelog/changes/001-create-initial-schema.sql
+  - include:
+      file: db/changelog/changes/002-create-document-processing-view.sql

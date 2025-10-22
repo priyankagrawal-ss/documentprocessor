@@ -1,0 +1,136 @@
+{
+  "groups": [
+    {
+      "name": "app.processing",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
+    },
+    {
+      "name": "app.processing.libreoffice",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$LibreOffice",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getLibreoffice()"
+    },
+    {
+      "name": "app.processing.libreoffice.retry",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$LibreOffice",
+      "sourceMethod": "getRetry()"
+    },
+    {
+      "name": "app.processing.msg-handler",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$MsgHandler",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getMsgHandler()"
+    },
+    {
+      "name": "app.processing.msg-handler.retry",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$MsgHandler",
+      "sourceMethod": "getRetry()"
+    },
+    {
+      "name": "app.processing.pdf",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getPdf()"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf",
+      "sourceMethod": "getGhostscript()"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript.retry",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$GhostscriptRetryConfig",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript",
+      "sourceMethod": "getRetry()"
+    },
+    {
+      "name": "app.processing.zip-handler",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$ZipHandler",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig",
+      "sourceMethod": "getZipHandler()"
+    },
+    {
+      "name": "app.processing.zip-handler.retry",
+      "type": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$ZipHandler",
+      "sourceMethod": "getRetry()"
+    }
+  ],
+  "properties": [
+    {
+      "name": "app.processing.libreoffice.convertible-extensions",
+      "type": "java.util.Set<java.lang.String>",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$LibreOffice"
+    },
+    {
+      "name": "app.processing.libreoffice.retry.attempts",
+      "type": "java.lang.Integer",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    },
+    {
+      "name": "app.processing.libreoffice.retry.delay-ms",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    },
+    {
+      "name": "app.processing.max-file-size",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
+    },
+    {
+      "name": "app.processing.max-pages",
+      "type": "java.lang.Integer",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig"
+    },
+    {
+      "name": "app.processing.msg-handler.retry.attempts",
+      "type": "java.lang.Integer",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    },
+    {
+      "name": "app.processing.msg-handler.retry.delay-ms",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript.optimization-timeout-minutes",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript.preset",
+      "type": "java.lang.String",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf$Ghostscript"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript.retry.attempts",
+      "type": "java.lang.Integer",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$GhostscriptRetryConfig"
+    },
+    {
+      "name": "app.processing.pdf.ghostscript.retry.delay-seconds",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$GhostscriptRetryConfig"
+    },
+    {
+      "name": "app.processing.pdf.optimize",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$Pdf"
+    },
+    {
+      "name": "app.processing.zip-handler.retry.attempts",
+      "type": "java.lang.Integer",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    },
+    {
+      "name": "app.processing.zip-handler.retry.delay-ms",
+      "type": "java.lang.Long",
+      "sourceType": "com.eyelevel.documentprocessor.config.DocumentProcessingConfig$RetryConfig"
+    }
+  ],
+  "hints": []
+}
