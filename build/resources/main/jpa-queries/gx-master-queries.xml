@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence/orm https://jakarta.ee/xml/ns/persistence/orm/orm_3_0.xsd"
+                 version="3.0">
+
+    <named-query name="GxMaster.findAllByGxStatusInOrderByCreatedAtAsc">
+        <query>
+            <![CDATA[
+                SELECT gm FROM GxMaster gm
+                WHERE gm.gxStatus IN :statuses
+                ORDER BY gm.createdAt ASC
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="GxMaster.findAllByStatusInOrderByCreatedAtAsc">
+        <query>
+            <![CDATA[
+                SELECT gm FROM GxMaster gm
+                WHERE gm.gxStatus IN :statuses
+                ORDER BY gm.createdAt ASC
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="GxMaster.findAllByProcessingJobId">
+        <query>
+            <![CDATA[
+                SELECT gm FROM GxMaster gm
+                JOIN gm.sourceFile fm
+                WHERE fm.processingJob.id = :jobId
+            ]]>
+        </query>
+    </named-query>
+
+    <named-query name="GxMaster.updateStatusForJobId">
+        <query>
+            <![CDATA[
+                UPDATE GxMaster gm
+                SET gm.gxStatus = :newStatus
+                WHERE gm.sourceFile.processingJob.id = :jobId AND gm.gxStatus IN :statusesToUpdate
+            ]]>
+        </query>
+    </named-query>
+
+</entity-mappings>

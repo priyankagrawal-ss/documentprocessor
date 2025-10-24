@@ -19,5 +19,6 @@ public enum ZipProcessingStatus {
     /**
      * An error occurred during extraction (e.g., corrupt file, invalid structure).
      */
-    EXTRACTION_FAILED
+    EXTRACTION_FAILED,
+    TERMINATED
 }

@@ -2,7 +2,7 @@ package com.eyelevel.documentprocessor.consumer;
 
 import com.eyelevel.documentprocessor.exception.DocumentProcessingException;
 import com.eyelevel.documentprocessor.exception.MessageProcessingFailedException;
-import com.eyelevel.documentprocessor.service.lifecycle.JobLifecycleManager;
+import com.eyelevel.documentprocessor.service.job.JobLifecycleManager;
 import com.eyelevel.documentprocessor.service.zip.ZipIngestionService;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class ZipExtractionConsumer {
      *
      * @param message The SQS message payload, expected to contain a "zipMasterId".
      */
-    @SqsListener(value = "${aws.sqs.zip-queue-name}")
+    @SqsListener(value = "${aws.sqs.zip-queue-name}", factory = "zipProcessContainerFactory")
     public void processZipMessage(@Payload final Map<String, Object> message) {
         final Object idObject = message.get("zipMasterId");
         if (!(idObject instanceof Number)) {

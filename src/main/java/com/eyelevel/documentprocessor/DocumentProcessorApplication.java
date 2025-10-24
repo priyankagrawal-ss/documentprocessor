@@ -45,7 +45,7 @@ public class DocumentProcessorApplication {
      * @param args Command-line arguments passed to the application.
      */
     public static void main(final String[] args) {
-        log.info("🚀 Starting DocumentProcessorApplication...");
+        log.info("Starting DocumentProcessorApplication...");
 
         final ConfigurableApplicationContext context = SpringApplication.run(DocumentProcessorApplication.class, args);
         final Environment env = context.getEnvironment();

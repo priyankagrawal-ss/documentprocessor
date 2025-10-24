@@ -20,7 +20,7 @@ public interface DocumentProcessingViewRepository extends BaseRepository<Documen
     /**
      * Finds status metrics for a given list of bucket IDs.
      * This method is now automatically bound to the named native query
-     * "DocumentProcessingView.findStatusMetricsByBucketIds" defined in metrics-queries.xml.
+     * "DocumentProcessingView.findStatusMetricsByBucketIds" defined in doc-process-view-queries.xml.
      * The results are mapped to the StatusMetric DTO via the "StatusMetricMapping".
      */
     @Query(name = "DocumentProcessingView.findStatusMetricsByBucketIds.native", nativeQuery = true)

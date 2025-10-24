@@ -32,7 +32,7 @@ public class FileConversionConsumer {
      *
      * @param message The SQS message payload, expected to contain a "fileMasterId".
      */
-    @SqsListener(value = "${aws.sqs.file-queue-name}")
+    @SqsListener(value = "${aws.sqs.file-queue-name}", factory = "fileProcessContainerFactory")
     public void processFileMessage(@Payload final Map<String, Object> message) {
         log.debug("Received new message on file processing queue: {}", message);
 

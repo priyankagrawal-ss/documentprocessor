@@ -11,7 +11,7 @@ import com.eyelevel.documentprocessor.dto.gx.docupload.GXDocumentUploadParameter
 import com.eyelevel.documentprocessor.dto.gx.docupload.request.GXUploadFileRequest;
 import com.eyelevel.documentprocessor.dto.gx.docupload.response.GXUploadDocumentResponse;
 import com.eyelevel.documentprocessor.dto.gx.uploadstatus.response.IngestResponse;
-import com.eyelevel.documentprocessor.exception.InternalServerException;
+import com.eyelevel.documentprocessor.exception.apiclient.InternalServerException;
 import com.eyelevel.documentprocessor.exception.apiclient.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;

@@ -1,67 +1,48 @@
-version: '3.8'
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
-    container_name: doc-processor-db
+    container_name: documentprocessor-postgres
     environment:
       POSTGRES_DB: doc_processor_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      POSTGRES_USER: priyank
+      POSTGRES_PASSWORD: priyank
     ports:
       - "5432:5432"
-    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d doc_processor_db" ]
+      test: ["CMD-SHELL", "pg_isready -U priyank -d doc_processor_db"]
       interval: 10s
       timeout: 5s
       retries: 5
-  app:
+
+  document-processor:
     build: .
-    container_name: doc-processor-app
-    depends_on:
-      db:
-        condition: service_healthy
+    container_name: documentprocessor-app
+    env_file:
+      - .env
     ports:
-      - "8080:8080"
-    environment:
-      - SPRING_APPLICATION_NAME=DocumentProcessor
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/doc_processor_db
-      - SPRING_DATASOURCE_USERNAME=user
-      - SPRING_DATASOURCE_PASSWORD=password
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-      - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
-      - AWS_REGION=<YOUR_AWS_REGION>
-      - AWS_S3_BUCKET=<YOUR_S3_BUCKET_NAME>
-      - AWS_S3_PRESIGNED_URL_DURATION_MINUTES=15
-      - AWS_ACCESS_KEY=<YOUR_AWS_ACCESS_KEY>
-      - AWS_SECRET_KEY=<YOUR_AWS_SECRET_KEY>
-      - AWS_SQS_ZIP_QUEUE_NAME=<YOUR_ZIP_QUEUE_NAME>
-      - AWS_SQS_FILE_QUEUE_NAME=<YOUR_FILE_QUEUE_NAME>
-      - APP_PROCESSING_MAX_FILE_SIZE=52428800
-      - APP_PROCESSING_MAX_PAGES=100
-      - APP_PROCESSING_PDF_OPTIMIZE=true
-      - APP_PROCESSING_PDF_OPTIMIZER=ghostscript
-      - APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET=/ebook
-      - APP_MONITOR_MAX_CPU_LOAD=90.0
-      - APP_MONITOR_MIN_FREE_MEMORY_MB=512
-      - APP_SCHEDULER_GXDOCUPLOAD=0 */5 * * * *            # Every 5 minutes
-      - APP_SCHEDULER_FETCHDOCUPLOADSTATUS=0 */1 * * * *   # Every minute
-      - APP_SCHEDULER_STALEJOB=0 0 * * * *                 # Every hour
-      - APP_SCHEDULER_JOBCOMPLETIONCHECK=0 */2 * * * *     # Every 2 minutes
-      - APP_SCHEDULER_STALE_JOB_CLEANUP_HOURS=24
-      - APP_GXCLIENT_BASEURL=<YOUR_GX_API_BASE_URL>
-      - APP_GXCLIENT_AUTHKEYNAME=x-api-key
-      - APP_GXCLIENT_AUTHKEYVALUE=<YOUR_GX_API_KEY>
-      - APP_GXCLIENT_ENDPOINT_UPLOADFILE=/ingest/process/url
-      - APP_GXCLIENT_ENDPOINT_FETCHSTATUS=/ingest/process/{processId}
-      - APP_GXCLIENT_ENDPOINT_CREATEBUCKET=/ingest/bucket
-      - APP_GX_MAX_CONCURRENT_UPLOADS=10
-      - JAVA_OPTS=-Xms256m -Xmx1024m
+      - "${APP_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: on-failure
 
-# Defines the named volume used by the 'db' service for data persistence.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: documentprocessor-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "16543:80"
+    depends_on:
+      - postgres
+
+
+
 volumes:
   postgres-data:
     driver: local

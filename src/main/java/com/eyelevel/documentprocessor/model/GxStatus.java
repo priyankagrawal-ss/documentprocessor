@@ -23,7 +23,8 @@ public enum GxStatus {
     CANCELLED("cancelled"),
     ACTIVE("active"),
     IN_ACTIVE("inactive"),
-    SKIPPED("skipped");
+    SKIPPED("skipped"),
+    TERMINATED("terminated");
 
     private static final Map<String, GxStatus> VALUE_MAP = Stream.of(values()).collect(
             Collectors.toMap(GxStatus::getValue, Function.identity()));

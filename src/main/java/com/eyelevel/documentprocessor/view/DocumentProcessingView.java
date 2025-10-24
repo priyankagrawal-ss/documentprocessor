@@ -25,8 +25,8 @@ import java.time.LocalDateTime;
                                                              @ColumnResult(name = "status_count", type = Long.class)}))
 @Getter
 @Entity
-@Immutable // Marks this entity as read-only, which is correct for a database view.
-@Table(name = "document_processing_view") // Maps the entity to the database view.
+@Immutable
+@Table(name = "document_processing_view")
 @NoArgsConstructor
 @AllArgsConstructor
 public class DocumentProcessingView implements BaseEntity {

@@ -21,7 +21,10 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   jpa:
     mapping-resources:
-      - jpa-queries/metrics-queries.xml
+      - jpa-queries/doc-process-view-queries.xml
+      - jpa-queries/file-master-queries.xml
+      - jpa-queries/gx-master-queries.xml
+      - jpa-queries/zip-master-queries.xml
     hibernate:
       ddl-auto: none
     properties:

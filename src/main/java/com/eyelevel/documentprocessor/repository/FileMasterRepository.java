@@ -2,9 +2,7 @@ package com.eyelevel.documentprocessor.repository;
 
 import com.eyelevel.documentprocessor.model.FileMaster;
 import com.eyelevel.documentprocessor.model.FileProcessingStatus;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,38 +14,20 @@ import java.util.Optional;
 
 /**
  * Spring Data JPA repository for the {@link FileMaster} entity.
+ * JPQL queries are defined in META-INF/file-master-orm.xml.
  */
 @Repository
 public interface FileMasterRepository extends JpaRepository<FileMaster, Long> {
 
-    Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndFileProcessingStatusNotIn(Integer gxBucketId,
-                                                                                      String fileHash,
-                                                                                      List<FileProcessingStatus> statuses);
-
-    List<FileMaster> findAllByGxBucketIdAndFileHashAndFileProcessingStatusNotIn(Integer gxBucketId, String fileHash,
-                                                                                List<FileProcessingStatus> statuses);
-
-    /**
-     * Finds all {@link FileMaster} entities associated with a specific {@link com.eyelevel.documentprocessor.model.ProcessingJob}.
-     *
-     * @param jobId The ID of the parent {@code ProcessingJob}.
-     *
-     * @return A list of all associated {@code FileMaster} entities.
-     */
     List<FileMaster> findAllByProcessingJobId(Long jobId);
 
-    /**
-     * Atomically updates the status of a FileMaster record only if its current status
-     * matches the expected status.
-     *
-     * @param id             The ID of the FileMaster to update.
-     * @param newStatus      The new status to set.
-     * @param expectedStatus The status the record must currently have for the update to occur.
-     *
-     * @return The number of rows affected (1 if the lock was acquired, 0 otherwise).
-     */
     @Modifying
-    @Query("UPDATE FileMaster fm SET fm.fileProcessingStatus = :newStatus WHERE fm.id = :id AND fm.fileProcessingStatus = :expectedStatus")
+    @Query(name = "FileMaster.updateStatusForJobIds")
+    int updateStatusForJobIds(@Param("jobId") List<Long> jobId, @Param("newStatus") FileProcessingStatus newStatus,
+                              @Param("statusesToUpdate") List<FileProcessingStatus> statusesToUpdate);
+
+    @Modifying
+    @Query(name = "FileMaster.updateStatusIfExpected")
     int updateStatusIfExpected(@Param("id") Long id, @Param("newStatus") FileProcessingStatus newStatus,
                                @Param("expectedStatus") FileProcessingStatus expectedStatus);
 
@@ -57,11 +37,11 @@ public interface FileMasterRepository extends JpaRepository<FileMaster, Long> {
     Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndFileProcessingStatusNotInOrderByIdAsc(Integer gxBucketId,
                                                                                                   String fileHash,
                                                                                                   List<FileProcessingStatus> statuses);
+
     @Transactional(readOnly = true)
     Optional<FileMaster> findFirstByGxBucketIdAndFileHashAndIdNotAndFileProcessingStatusNotInOrderByIdAsc(
-            Integer gxBucketId,
-            String fileHash,
-            Long idToExclude,
-            List<FileProcessingStatus> statuses
-                                                                                                         );
+            Integer gxBucketId, String fileHash, Long idToExclude, List<FileProcessingStatus> statuses);
+
+    @Query(name = "FileMaster.findByIdWithJob")
+    Optional<FileMaster> findByIdWithJob(@Param("id") Long id);
 }

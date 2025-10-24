@@ -27,5 +27,5 @@ public enum FileProcessingStatus {
     /**
      * Processing was skipped due to a validation error (e.g., zero-byte file, unsupported type).
      */
-    IGNORED
+    IGNORED, TERMINATED
 }

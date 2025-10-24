@@ -1,6 +1,7 @@
 package com.eyelevel.documentprocessor.service.job;
 
-import com.eyelevel.documentprocessor.dto.PresignedUploadResponse;
+import com.eyelevel.documentprocessor.dto.uploadfile.direct.PresignedUploadResponse;
+import com.eyelevel.documentprocessor.dto.uploadfile.multipart.InitiateMultipartUploadResponse;
 import com.eyelevel.documentprocessor.exception.DocumentProcessingException;
 import com.eyelevel.documentprocessor.model.*;
 import com.eyelevel.documentprocessor.repository.FileMasterRepository;
@@ -16,8 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
 
 import java.net.URL;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -30,89 +33,79 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class JobOrchestrationService {
-
     private static final Set<ProcessingStatus> VALID_TRIGGER_STATUSES = Set.of(ProcessingStatus.PENDING_UPLOAD,
                                                                                ProcessingStatus.UPLOAD_COMPLETE);
     private static final String SQS_MESSAGE_GROUP_ID_HEADER = "message-group-id";
     private static final String SQS_MESSAGE_DEDUPLICATION_ID_HEADER = "message-deduplication-id";
+
     private final ProcessingJobRepository jobRepository;
     private final ZipMasterRepository zipMasterRepository;
     private final FileMasterRepository fileMasterRepository;
     private final SqsTemplate sqsTemplate;
     private final S3StorageService s3StorageService;
+
     @Value("${aws.sqs.zip-queue-name}")
     private String zipQueueName;
     @Value("${aws.sqs.file-queue-name}")
     private String fileQueueName;
 
-    /**
-     * Creates a new {@link ProcessingJob}, reserves an S3 key, and generates a pre-signed S3 URL
-     * for the client to upload a file directly to storage.
-     *
-     * @param fileName      The original name of the file to be uploaded.
-     * @param gxBucketId    The target bucket ID. If null, the job is treated as a bulk ZIP upload.
-     * @param skipGxProcess A flag to bypass the final step of sending the document to GroundX.
-     *
-     * @return A {@link PresignedUploadResponse} containing the new job's ID and the upload URL.
-     */
     @Transactional
     public PresignedUploadResponse createJobAndPresignedUrl(final String fileName, final Integer gxBucketId,
                                                             final boolean skipGxProcess) {
-        final String jobType = (gxBucketId == null) ? "BULK" : "SINGLE";
-        log.info("Creating new {} processing job for file: '{}', skipGxProcess={}", jobType, fileName, skipGxProcess);
-
-        ProcessingJob job = new ProcessingJob();
-        job.setOriginalFilename(fileName);
-        job.setFileLocation("PENDING_S3_KEY");
-        job.setGxBucketId(gxBucketId);
-        job.setSkipGxProcess(skipGxProcess);
-        job.setStatus(ProcessingStatus.PENDING_UPLOAD);
-        job.setCurrentStage("Awaiting client file upload");
-
-        job = jobRepository.saveAndFlush(job);
-
-        final String s3Key = S3StorageService.constructS3Key(fileName, gxBucketId, job.getId(), "source");
-        job.setFileLocation(s3Key);
-        jobRepository.save(job);
-
-        final URL presignedUrl = s3StorageService.generatePresignedUploadUrl(s3Key);
-        log.info("Generated pre-signed URL for Job ID: {}. S3 Key: {}", job.getId(), s3Key);
+        ProcessingJob job = createAndPersistProcessingJob(fileName, gxBucketId, skipGxProcess,
+                                                          "Awaiting client file upload");
+        final URL presignedUrl = s3StorageService.generatePresignedUploadUrl(job.getFileLocation());
+        log.info("Generated pre-signed URL for Job ID: {}. S3 Key: {}", job.getId(), job.getFileLocation());
         return new PresignedUploadResponse(job.getId(), presignedUrl);
     }
 
-    /**
-     * Initiates backend processing after a client confirms a successful file upload. This method
-     * transitions the job state and routes it to the correct SQS queue based on its type.
-     *
-     * @param jobId The ID of the job to trigger.
-     *
-     * @throws DocumentProcessingException if the job is not found or fails validation.
-     */
+    @Transactional
+    public InitiateMultipartUploadResponse createJobAndInitiateMultipartUpload(final String fileName,
+                                                                               final Integer gxBucketId,
+                                                                               final boolean skipGxProcess) {
+        ProcessingJob job = createAndPersistProcessingJob(fileName, gxBucketId, skipGxProcess,
+                                                          "Awaiting client file upload (multipart)");
+        final String uploadId = s3StorageService.initiateMultipartUpload(job.getFileLocation());
+        log.info("Initiated multipart upload for Job ID: {}. S3 Key: {}, Upload ID: {}", job.getId(),
+                 job.getFileLocation(), uploadId);
+        return new InitiateMultipartUploadResponse(job.getId(), uploadId);
+    }
+
+    public URL generatePresignedUrlForPart(final Long jobId, final String uploadId, final int partNumber) {
+        final ProcessingJob job = findJobById(jobId);
+        return s3StorageService.generatePresignedUrlForPart(job.getFileLocation(), uploadId, partNumber);
+    }
+
+    public void completeMultipartUpload(final Long jobId, final String uploadId, final List<CompletedPart> parts) {
+        final ProcessingJob job = findJobById(jobId);
+        s3StorageService.completeMultipartUpload(job.getFileLocation(), uploadId, parts);
+        log.info("Client confirmed completion of multipart upload for Job ID: {}", jobId);
+    }
+
     @Transactional
     public void triggerProcessing(final Long jobId) {
         log.info("Triggering backend processing for Job ID: {}", jobId);
-        final ProcessingJob job = jobRepository.findById(jobId).orElseThrow(
-                () -> new DocumentProcessingException("ProcessingJob not found with ID: " + jobId));
+        final ProcessingJob job = findJobById(jobId);
 
         if (!VALID_TRIGGER_STATUSES.contains(job.getStatus())) {
-            String errorMessage = String.format(
+            throw new DocumentProcessingException(String.format(
                     "Job with ID %d cannot be triggered because it is already in progress or completed. Current status: %s",
-                    jobId, job.getStatus());
-            log.warn(errorMessage);
-            throw new DocumentProcessingException(errorMessage);
+                    jobId, job.getStatus()));
         }
 
         job.setStatus(ProcessingStatus.UPLOAD_COMPLETE);
         final String extension = FilenameUtils.getExtension(job.getOriginalFilename()).toLowerCase();
         final boolean isZip = "zip".equals(extension);
 
+        // Guard clause: Fail fast for invalid bulk uploads
+        if (job.isBulkUpload() && !isZip) {
+            final String errorMsg = "Bulk uploads must be a ZIP file but received: " + extension;
+            job.setStatus(ProcessingStatus.FAILED);
+            job.setErrorMessage(errorMsg);
+            throw new DocumentProcessingException(errorMsg);
+        }
+
         if (job.isBulkUpload() || isZip) {
-            if (job.isBulkUpload() && !isZip) {
-                final String errorMsg = "Bulk uploads must be a ZIP file but received: " + extension;
-                job.setStatus(ProcessingStatus.FAILED);
-                job.setErrorMessage(errorMsg);
-                throw new DocumentProcessingException(errorMsg);
-            }
             log.info("Job ID {} is a ZIP upload. Routing to ZIP ingestion.", jobId);
             queueZipForIngestion(job);
         } else {
@@ -121,12 +114,9 @@ public class JobOrchestrationService {
         }
 
         job.setStatus(ProcessingStatus.QUEUED);
+        log.info("Job ID {} has been successfully queued for processing.", jobId);
     }
 
-    /**
-     * Finds an existing ZipMaster or creates a new one and queues it for ingestion.
-     * This method is now idempotent, optimized, and significantly cleaner.
-     */
     private void queueZipForIngestion(final ProcessingJob job) {
         job.setCurrentStage("Queued for ZIP Ingestion");
 
@@ -140,31 +130,16 @@ public class JobOrchestrationService {
         });
 
         if (zipMaster.getZipProcessingStatus() != ZipProcessingStatus.QUEUED_FOR_EXTRACTION) {
-            log.warn(
-                    "ZipMaster for Job ID {} already exists and is in a non-queued state ({}). Skipping queue message.",
-                    job.getId(), zipMaster.getZipProcessingStatus());
+            log.warn("ZipMaster for Job ID {} already exists in a non-queued state ({}). Skipping queue message.",
+                     job.getId(), zipMaster.getZipProcessingStatus());
             return;
         }
 
         log.info("Queueing ZipMaster ID: {} for Job ID: {}", zipMaster.getId(), job.getId());
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                String messageGroupId = "zip-job-" + job.getId();
-                String deduplicationId = "zip-master-" + zipMaster.getId();
-
-                sqsTemplate.send(to -> to.queue(zipQueueName).payload(Map.of("zipMasterId", zipMaster.getId()))
-                                         .header(SQS_MESSAGE_GROUP_ID_HEADER, messageGroupId)
-                                         .header(SQS_MESSAGE_DEDUPLICATION_ID_HEADER, deduplicationId));
-                log.info("Sent ZipMaster ID: {} to queue '{}'", zipMaster.getId(), zipQueueName);
-            }
-        });
+        queueSqsMessageAfterCommit(zipQueueName, Map.of("zipMasterId", zipMaster.getId()), "zip-job-" + job.getId(),
+                                   "zip-master-" + zipMaster.getId());
     }
 
-    /**
-     * Finds an existing FileMaster or creates a new one and queues it for processing.
-     * This method is now idempotent, optimized, and significantly cleaner.
-     */
     private void queueFileForProcessing(final ProcessingJob job) {
         job.setCurrentStage("Queued for File Processing");
 
@@ -180,23 +155,66 @@ public class JobOrchestrationService {
         });
 
         if (fileMaster.getFileProcessingStatus() != FileProcessingStatus.QUEUED) {
-            log.warn(
-                    "FileMaster for Job ID {} already exists and is in a non-queued state ({}). Skipping queue message.",
-                    job.getId(), fileMaster.getFileProcessingStatus());
+            log.warn("FileMaster for Job ID {} already exists in a non-queued state ({}). Skipping queue message.",
+                     job.getId(), fileMaster.getFileProcessingStatus());
             return;
         }
 
         log.info("Queueing FileMaster ID: {} for Job ID: {}", fileMaster.getId(), job.getId());
+        queueSqsMessageAfterCommit(fileQueueName, Map.of("fileMasterId", fileMaster.getId()),
+                                   String.valueOf(fileMaster.getGxBucketId()),
+                                   "file-master-" + fileMaster.getId() + "-" + UUID.randomUUID());
+    }
+
+    /**
+     * Centralizes the creation of a {@link ProcessingJob} to avoid code duplication.
+     *
+     * @return The persisted {@link ProcessingJob} entity.
+     */
+    private ProcessingJob createAndPersistProcessingJob(final String fileName, final Integer gxBucketId,
+                                                        final boolean skipGxProcess, final String initialStage) {
+        final String jobType = (gxBucketId == null) ? "BULK" : "SINGLE";
+        log.info("Creating new {} processing job for file: '{}', skipGxProcess={}", jobType, fileName, skipGxProcess);
+
+        ProcessingJob job = new ProcessingJob();
+        job.setOriginalFilename(fileName);
+        job.setGxBucketId(gxBucketId);
+        job.setSkipGxProcess(skipGxProcess);
+        job.setStatus(ProcessingStatus.PENDING_UPLOAD);
+        job.setCurrentStage(initialStage);
+        // Save first to generate an ID
+        job.setFileLocation("PENDING");
+        job = jobRepository.saveAndFlush(job);
+
+        // Now construct the S3 key with the generated ID and update the job
+        final String s3Key = S3StorageService.constructS3Key(fileName, gxBucketId, job.getId(), "source");
+        job.setFileLocation(s3Key);
+        return jobRepository.save(job);
+    }
+
+    /**
+     * Centralizes the logic for finding a job by its ID, throwing a consistent exception if not found.
+     *
+     * @param jobId The ID of the job to find.
+     *
+     * @return The {@link ProcessingJob} entity.
+     */
+    private ProcessingJob findJobById(final Long jobId) {
+        return jobRepository.findById(jobId).orElseThrow(
+                () -> new DocumentProcessingException("ProcessingJob not found with ID: " + jobId));
+    }
+
+    /**
+     * Encapsulates the logic to send an SQS message only after the current database transaction commits successfully.
+     */
+    private void queueSqsMessageAfterCommit(final String queueName, final Map<String, ?> payload, final String groupId,
+                                            final String deduplicationId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                String messageGroupId = String.valueOf(fileMaster.getGxBucketId());
-                String deduplicationId = "file-master-" + fileMaster.getId() + "-" + UUID.randomUUID();
-
-                sqsTemplate.send(to -> to.queue(fileQueueName).payload(Map.of("fileMasterId", fileMaster.getId()))
-                                         .header(SQS_MESSAGE_GROUP_ID_HEADER, messageGroupId)
+                sqsTemplate.send(to -> to.queue(queueName).payload(payload).header(SQS_MESSAGE_GROUP_ID_HEADER, groupId)
                                          .header(SQS_MESSAGE_DEDUPLICATION_ID_HEADER, deduplicationId));
-                log.info("Sent FileMaster ID: {} to queue '{}'", fileMaster.getId(), fileQueueName);
+                log.info("Successfully sent message to queue '{}' with payload: {}", queueName, payload);
             }
         });
     }

@@ -4,7 +4,7 @@ import com.eyelevel.documentprocessor.common.apiclient.authentication.Authentica
 import com.eyelevel.documentprocessor.common.apiclient.model.ApiRequest;
 import com.eyelevel.documentprocessor.common.apiclient.model.ApiResponse;
 import com.eyelevel.documentprocessor.common.apiclient.model.HeaderConfig;
-import com.eyelevel.documentprocessor.exception.InternalServerException;
+import com.eyelevel.documentprocessor.exception.apiclient.InternalServerException;
 import com.eyelevel.documentprocessor.exception.apiclient.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
