@@ -269,16 +269,19 @@ public class DocumentPipelineService {
 
     private boolean prepareAndCheckForDirectUploadDuplicates(FileMaster fileMaster, Path tempFile) throws IOException {
         final String fileName = fileMaster.getFileName();
-        final long fileSize = fileMaster.getFileSize();
+        // The GxBucketId is needed for lookups, so it can be retrieved early.
         final Integer gxBucketId = fileMaster.getGxBucketId();
 
-        // Compute hash by downloading file content
+        // 1. FIRST, download the file to compute its hash and get the actual size (bytesRead).
         final HashResult hashResult = downloadAndHashFile(fileMaster, tempFile);
         final String fileHash = hashResult.hexHash();
+        // 2. Use the ACTUAL size from the download, not the potentially null one from the entity.
+        final long fileSize = hashResult.bytesRead();
 
+        // 3. NOW, proceed with validation and duplicate checking using the correct values.
         Optional<Boolean> result = handleValidationAndDuplication(
                 fileName,
-                fileSize,
+                fileSize, // Use the just-calculated size
                 fileHash,
                 gxBucketId,
                 () -> updateFileStatusToIgnored(fileMaster, "Validation failed"),
@@ -288,9 +291,10 @@ public class DocumentPipelineService {
                 },
                 () -> {
                     try {
-                        self.updateFileMasterHashAndSize(fileMaster.getId(), fileHash, hashResult.bytesRead());
+                        // Update the entity with the correct hash and size
+                        self.updateFileMasterHashAndSize(fileMaster.getId(), fileHash, fileSize);
                         fileMaster.setFileHash(fileHash);
-                        fileMaster.setFileSize(hashResult.bytesRead());
+                        fileMaster.setFileSize(fileSize);
                         return Optional.of(true);
                     } catch (DataIntegrityViolationException e) {
                         log.warn("Race condition detected for hash '{}' on FileMaster ID {}.", fileHash, fileMaster.getId());
