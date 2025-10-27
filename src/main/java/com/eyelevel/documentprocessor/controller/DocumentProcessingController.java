@@ -3,12 +3,15 @@ package com.eyelevel.documentprocessor.controller;
 import com.eyelevel.documentprocessor.dto.common.ApiResponse;
 import com.eyelevel.documentprocessor.dto.metric.request.MetricsRequest;
 import com.eyelevel.documentprocessor.dto.metric.response.StatusMetricItem;
+import com.eyelevel.documentprocessor.dto.presign.download.PresignedDownloadResponse;
+import com.eyelevel.documentprocessor.dto.presign.request.DownloadFileRequest;
 import com.eyelevel.documentprocessor.dto.retry.request.RetryRequest;
 import com.eyelevel.documentprocessor.dto.terminate.TerminateAllResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.direct.PresignedUploadResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.CompleteMultipartUploadRequest;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.InitiateMultipartUploadResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.PresignedUrlPartResponse;
+import com.eyelevel.documentprocessor.service.file.DownloadService;
 import com.eyelevel.documentprocessor.service.file.RetryService;
 import com.eyelevel.documentprocessor.service.file.view.DocumentProcessingViewService;
 import com.eyelevel.documentprocessor.service.job.JobLifecycleManager;
@@ -47,7 +50,7 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     private final DocumentProcessingViewService documentProcessingViewService;
     private final JobLifecycleManager jobLifecycleManager;
     private final RetryService retryService;
-
+    private final DownloadService downloadService;
     // --- 1. UPLOAD ENDPOINTS ---
 
     @Override
@@ -140,5 +143,12 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestBody @Valid final MetricsRequest request) {
         Map<Integer, List<StatusMetricItem>> metrics = documentProcessingViewService.getMetricsForBuckets(request.getGxBucketIds());
         return ResponseEntity.ok(ApiResponse.success(metrics));
+    }
+
+    @Override
+    @PostMapping("/v1/downloads/presigned-url")
+    public ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(@Valid @RequestBody final DownloadFileRequest request) {
+        PresignedDownloadResponse responseData = downloadService.generatePresignedDownloadUrl(request);
+        return ResponseEntity.ok(ApiResponse.success(responseData));
     }
 }

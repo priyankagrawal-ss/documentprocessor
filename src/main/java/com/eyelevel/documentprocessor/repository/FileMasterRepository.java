@@ -44,4 +44,7 @@ public interface FileMasterRepository extends JpaRepository<FileMaster, Long> {
 
     @Query(name = "FileMaster.findByIdWithJob")
     Optional<FileMaster> findByIdWithJob(@Param("id") Long id);
+
+    @Query(name = "FileMaster.findFileLocationById")
+    Optional<String> findFileLocationById(@Param("id") Long id);
 }

@@ -3,6 +3,8 @@ package com.eyelevel.documentprocessor.controller;
 import com.eyelevel.documentprocessor.dto.common.ApiResponse;
 import com.eyelevel.documentprocessor.dto.metric.request.MetricsRequest;
 import com.eyelevel.documentprocessor.dto.metric.response.StatusMetricItem;
+import com.eyelevel.documentprocessor.dto.presign.download.PresignedDownloadResponse;
+import com.eyelevel.documentprocessor.dto.presign.request.DownloadFileRequest;
 import com.eyelevel.documentprocessor.dto.retry.request.RetryRequest;
 import com.eyelevel.documentprocessor.dto.terminate.TerminateAllResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.direct.PresignedUploadResponse;
@@ -447,4 +449,42 @@ public interface DocumentProcessingApi {
                                     }
                                     """)))
             @RequestBody MetricsRequest request);
+
+    @Operation(summary = "Generate Pre-signed Download URL",
+            description = "Generates a temporary, secure, pre-signed URL for downloading a processed file. The request must specify either a 'fileMasterId' or a 'gxMasterId'. If 'gxMasterId' is provided, it will be used as the priority source.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Pre-signed download URL generated successfully.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PresignedDownloadResponse.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                        "success": true,
+                                        "timestamp": 1672531200000,
+                                        "message": "Request was successful.",
+                                        "data": {
+                                            "downloadUrl": "https://your-bucket.s3.region.amazonaws.com/..."
+                                        }
+                                    }
+                                    """))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid request body or the specified file is not available for download.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Not Found - The specified file or job ID does not exist.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class)))
+    })
+    ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The request body containing the ID of the file to download. Exactly one of 'fileMasterId' or 'gxMasterId' must be provided.", required = true,
+                    content = @Content(schema = @Schema(implementation = RetryRequest.class),
+                            examples = {
+                                    @ExampleObject(name = "Download from GxMaster (Preferred)", value = """
+                                            {
+                                                "gxMasterId": 210
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Download from FileMaster", value = """
+                                            {
+                                                "fileMasterId": 105
+                                            }
+                                            """)
+                            }))
+            @Valid @RequestBody DownloadFileRequest request);
 }

@@ -36,4 +36,8 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
 
     @Query(name = "GxMaster.findAllByStatusInOrderByCreatedAtAsc")
     List<GxMaster> findAllByStatusInOrderByCreatedAtAsc(@Param("statuses") List<GxStatus> statuses, Pageable pageable);
+
+    @Query(name = "GxMaster.findFileLocationById")
+    Optional<String> findFileLocationById(@Param("id") Long id);
+    
 }

@@ -5,114 +5,142 @@
                  version="3.0">
 
     <!--
-     Define a named native query for fetching document status metrics.
-     The name "DocumentProcessingView.findStatusMetricsByBucketIds" is a convention that links
-     it to the DocumentProcessingView entity and the repository method name.
-     -->
+     OPTIMIZED: Named native query for document status metrics.
+     This query provides a complete picture of all document statuses, including zero counts,
+     with clear disambiguation between the 'Ingestion' and 'GroundX' pipeline stages.
+    -->
     <named-native-query name="DocumentProcessingView.findStatusMetricsByBucketIds.native"
                         result-set-mapping="StatusMetricMapping">
         <query>
             <![CDATA[
-                SELECT gx_bucket_id, display_status, status_count
-                FROM (
-                    -- CTE Part 1: Define a master list of all possible user-facing statuses.
-                    WITH all_statuses AS (
-                        SELECT 'Completed' AS display_status UNION ALL
-                        SELECT 'Active' UNION ALL
-                        SELECT 'Skipped' UNION ALL
-                        SELECT 'Queued (GroundX)' UNION ALL
-                        SELECT 'Processing (GroundX)' UNION ALL
-                        SELECT 'GroundX Failed' UNION ALL
-                        SELECT 'Queued (Ingestion)' UNION ALL
-                        SELECT 'Processing (Ingestion)' UNION ALL
-                        SELECT 'Ingestion Failed' UNION ALL
-                        SELECT 'Duplicate' UNION ALL
-                        SELECT 'Ignored' UNION ALL
-                        SELECT 'Unknown'
-                    ),
-                    -- CTE Part 2: Get the raw status data for ONLY the requested buckets (Optimized).
-                    document_status_data AS (
-                        -- Part A: Select statuses from gx_master for the requested buckets.
-                        SELECT
-                            gm.gx_bucket_id,
-                            CASE
-                                WHEN gm.gx_status = 'COMPLETE' THEN 'Completed'
-                                WHEN gm.gx_status = 'ACTIVE' THEN 'Active'
-                                WHEN gm.gx_status = 'SKIPPED' THEN 'Skipped'
-                                WHEN gm.gx_status = 'QUEUED_FOR_UPLOAD' THEN 'Queued (GroundX)'
-                                WHEN gm.gx_status IN ('QUEUED','PROCESSING') THEN 'Processing (GroundX)'
-                                WHEN gm.gx_status = 'ERROR' THEN 'GroundX Failed'
-                                ELSE 'Unknown'
-                            END AS display_status
-                        FROM gx_master gm
-                        WHERE gm.gx_bucket_id IN (:gxBucketIds)
-                        UNION ALL
-                        -- Part B: Select statuses from file_master for the requested buckets.
-                        SELECT
-                            fm.gx_bucket_id,
-                            CASE
-                                WHEN fm.file_processing_status = 'QUEUED' THEN 'Queued (Ingestion)'
-                                WHEN fm.file_processing_status = 'IN_PROGRESS' THEN 'Processing (Ingestion)'
-                                WHEN fm.file_processing_status = 'FAILED' THEN 'Ingestion Failed'
-                                WHEN fm.file_processing_status = 'DUPLICATE' THEN 'Duplicate'
-                                WHEN fm.file_processing_status = 'IGNORED' THEN 'Ignored'
-                                ELSE 'Unknown'
-                            END AS display_status
-                        FROM file_master fm
-                        WHERE
-                            fm.gx_bucket_id IN (:gxBucketIds)
-                            AND NOT EXISTS (SELECT 1 FROM gx_master gm WHERE gm.source_file_id = fm.id)
-                            AND fm.file_processing_status != 'COMPLETED'
-                    ),
-                    -- CTE Part 3: Calculate the actual counts per bucket, per status.
-                    actual_counts AS (
-                        SELECT
-                            gx_bucket_id,
-                            display_status,
-                            COUNT(*) AS status_count
-                        FROM document_status_data
-                        GROUP BY gx_bucket_id, display_status
-                    ),
-                    -- CTE Part 4: Create a "scaffold" of every possible (bucket x status) combination.
-                    bucket_status_scaffold AS (
-                        SELECT
-                            b.gx_bucket_id,
-                            s.display_status
-                        FROM (SELECT DISTINCT gx_bucket_id FROM document_status_data) b
-                        CROSS JOIN all_statuses s
-                    ),
-                    -- CTE Part 5: Combine the scaffold with actual counts to get zero-count statuses.
-                    status_metrics AS (
-                        SELECT
-                            scaffold.gx_bucket_id,
-                            scaffold.display_status,
-                            COALESCE(counts.status_count, 0) AS status_count
-                        FROM bucket_status_scaffold scaffold
-                        LEFT JOIN actual_counts counts
-                            ON scaffold.gx_bucket_id = counts.gx_bucket_id
-                            AND scaffold.display_status = counts.display_status
-                    )
-                    -- Final UNION: Combine the detailed metrics with the per-bucket totals.
-                    -- Part A: The detailed metrics for each status.
-                    SELECT gx_bucket_id, display_status, status_count FROM status_metrics
+                WITH
+                -------------------------------------------------------------------
+                -- CTE 1: Define the complete, canonical list of all possible display statuses.
+                -- This is the key to ensuring all statuses appear in the results, even with zero counts.
+                -------------------------------------------------------------------
+                all_statuses AS (
+                    SELECT 'Completed (GroundX)' AS display_status UNION ALL
+                    SELECT 'Active (GroundX)' UNION ALL
+                    SELECT 'Inactive (GroundX)' UNION ALL
+                    SELECT 'Skipped (GroundX)' UNION ALL
+                    SELECT 'Queued for Upload (GroundX)' UNION ALL
+                    SELECT 'Queued (GroundX)' UNION ALL
+                    SELECT 'Processing (GroundX)' UNION ALL
+                    SELECT 'Error (GroundX)' UNION ALL
+                    SELECT 'Cancelled (GroundX)' UNION ALL
+                    SELECT 'Terminated (GroundX)' UNION ALL
+                    SELECT 'Queued (Ingestion)' UNION ALL
+                    SELECT 'Processing (Ingestion)' UNION ALL
+                    SELECT 'Error (Ingestion)' UNION ALL
+                    SELECT 'Duplicate (Ingestion)' UNION ALL
+                    SELECT 'Ignored (Ingestion)' UNION ALL
+                    SELECT 'Terminated (Ingestion)'
+                ),
+                -------------------------------------------------------------------
+                -- CTE 2: Gather the raw status data for the requested buckets, applying the same logic as the view.
+                -------------------------------------------------------------------
+                document_status_data AS (
+                    -- GroundX statuses (final stage)
+                    SELECT
+                        gm.gx_bucket_id,
+                        CASE gm.gx_status
+                            WHEN 'COMPLETE'           THEN 'Completed (GroundX)'
+                            WHEN 'ACTIVE'             THEN 'Active (GroundX)'
+                            WHEN 'IN_ACTIVE'          THEN 'Inactive (GroundX)'
+                            WHEN 'SKIPPED'            THEN 'Skipped (GroundX)'
+                            WHEN 'QUEUED_FOR_UPLOAD'  THEN 'Queued for Upload (GroundX)'
+                            WHEN 'QUEUED'             THEN 'Queued (GroundX)'
+                            WHEN 'PROCESSING'         THEN 'Processing (GroundX)'
+                            WHEN 'ERROR'              THEN 'Error (GroundX)'
+                            WHEN 'CANCELLED'          THEN 'Cancelled (GroundX)'
+                            WHEN 'TERMINATED'         THEN 'Terminated (GroundX)'
+                            ELSE 'Unknown'
+                        END AS display_status
+                    FROM gx_master gm
+                    WHERE gm.gx_bucket_id IN (:gxBucketIds)
+
                     UNION ALL
-                    -- Part B: The calculated total for each bucket.
+
+                    -- Ingestion statuses (for files not yet in GroundX)
+                    SELECT
+                        fm.gx_bucket_id,
+                        CASE fm.file_processing_status
+                            WHEN 'QUEUED'       THEN 'Queued (Ingestion)'
+                            WHEN 'IN_PROGRESS'  THEN 'Processing (Ingestion)'
+                            WHEN 'FAILED'       THEN 'Error (Ingestion)'
+                            WHEN 'DUPLICATE'    THEN 'Duplicate (Ingestion)'
+                            WHEN 'IGNORED'      THEN 'Ignored (Ingestion)'
+                            WHEN 'TERMINATED'   THEN 'Terminated (Ingestion)'
+                            ELSE 'Unknown'
+                        END AS display_status
+                    FROM file_master fm
+                    WHERE
+                        fm.gx_bucket_id IN (:gxBucketIds)
+                        AND NOT EXISTS (
+                            SELECT 1 FROM gx_master gm WHERE gm.source_file_id = fm.id
+                        )
+                        AND fm.file_processing_status != 'COMPLETED'
+                ),
+                -------------------------------------------------------------------
+                -- CTE 3: Aggregate the raw counts per bucket and status.
+                -------------------------------------------------------------------
+                actual_counts AS (
                     SELECT
                         gx_bucket_id,
-                        'Total' AS display_status,
-                        SUM(status_count) AS status_count
-                    FROM status_metrics
-                    GROUP BY gx_bucket_id
-                ) AS final_results
-                -- Order results by bucket, then statuses, with 'Total' always at the end for each bucket.
-                ORDER BY
-                    gx_bucket_id ASC,
-                    CASE
-                        WHEN display_status = 'Total' THEN 1
-                        ELSE 0
-                    END,
-                    display_status ASC
+                        display_status,
+                        COUNT(*) AS status_count
+                    FROM document_status_data
+                    GROUP BY gx_bucket_id, display_status
+                ),
+                -------------------------------------------------------------------
+                -- CTE 4: Create a complete scaffold of all buckets crossed with all possible statuses.
+                -------------------------------------------------------------------
+                bucket_status_scaffold AS (
+                    SELECT
+                        b.gx_bucket_id,
+                        s.display_status
+                    FROM (SELECT DISTINCT gx_bucket_id FROM document_status_data) b
+                    CROSS JOIN all_statuses s
+                ),
+                -------------------------------------------------------------------
+                -- CTE 5: Join the actual counts to the scaffold to fill in zeros for missing statuses.
+                -------------------------------------------------------------------
+                status_metrics AS (
+                    SELECT
+                        scaffold.gx_bucket_id,
+                        scaffold.display_status,
+                        COALESCE(counts.status_count, 0) AS status_count
+                    FROM bucket_status_scaffold scaffold
+                    LEFT JOIN actual_counts counts
+                        ON scaffold.gx_bucket_id = counts.gx_bucket_id
+                        AND scaffold.display_status = counts.display_status
+                )
+                -------------------------------------------------------------------
+                -- FINAL SELECT: Combine the individual metrics with a calculated 'Total' row for each bucket.
+                -------------------------------------------------------------------
+                SELECT gx_bucket_id, display_status, status_count
+                FROM status_metrics
+                WHERE status_count > 0 -- Only show statuses that exist for the bucket or have a count
+
+                UNION ALL
+
+                SELECT
+                    gx_bucket_id,
+                    'Total' AS display_status,
+                    SUM(status_count) AS status_count
+                FROM status_metrics
+                GROUP BY gx_bucket_id
             ]]>
         </query>
     </named-native-query>
+
+    <!-- The SqlResultSetMapping remains the same as it correctly maps the required columns -->
+    <sql-result-set-mapping name="StatusMetricMapping">
+        <constructor-result target-class="com.eyelevel.documentprocessor.dto.metric.StatusMetric">
+            <column name="gx_bucket_id" class="java.lang.Integer"/>
+            <column name="display_status" class="java.lang.String"/>
+            <column name="status_count" class="java.lang.Long"/>
+        </constructor-result>
+    </sql-result-set-mapping>
+
 </entity-mappings>

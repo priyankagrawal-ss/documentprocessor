@@ -34,4 +34,14 @@
         </query>
     </named-query>
 
+    <named-query name="FileMaster.findFileLocationById">
+        <query>
+            <![CDATA[
+                SELECT fm.fileLocation
+                FROM FileMaster fm
+                WHERE fm.id = :id
+            ]]>
+        </query>
+    </named-query>
+
 </entity-mappings>

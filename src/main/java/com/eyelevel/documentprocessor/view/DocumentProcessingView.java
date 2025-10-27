@@ -1,8 +1,10 @@
 package com.eyelevel.documentprocessor.view;
 
-import com.eyelevel.documentprocessor.dto.metric.StatusMetric;
 import com.smartsensesolutions.commons.dao.base.BaseEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,12 +19,6 @@ import java.time.LocalDateTime;
  * data from multiple tables to provide a simplified and performant way to query the state
  * of documents in the processing pipeline. As a view, it is immutable.
  */
-@SqlResultSetMapping(name = "StatusMetricMapping", // This name is referenced in the XML file
-                     classes = @ConstructorResult(targetClass = StatusMetric.class,
-                                                  columns = {@ColumnResult(name = "gx_bucket_id", type = Integer.class),
-                                                             @ColumnResult(name = "display_status",
-                                                                           type = String.class),
-                                                             @ColumnResult(name = "status_count", type = Long.class)}))
 @Getter
 @Entity
 @Immutable
