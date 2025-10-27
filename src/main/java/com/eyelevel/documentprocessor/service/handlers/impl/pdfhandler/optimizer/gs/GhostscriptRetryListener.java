@@ -1,4 +1,4 @@
-package com.eyelevel.documentprocessor.service.handlers.impl.pdfhandler.optimizer;
+package com.eyelevel.documentprocessor.service.handlers.impl.pdfhandler.optimizer.gs;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.RetryCallback;

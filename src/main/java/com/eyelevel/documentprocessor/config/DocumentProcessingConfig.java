@@ -3,6 +3,7 @@ package com.eyelevel.documentprocessor.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -27,6 +28,7 @@ public class DocumentProcessingConfig {
         private long delayMs;
     }
 
+    // This class was not used in the original code, but is good practice to keep for consistency
     @Data
     public static class GhostscriptRetryConfig {
         private RetryConfig retry = new RetryConfig();
@@ -49,18 +51,32 @@ public class DocumentProcessingConfig {
         private RetryConfig retry = new RetryConfig();
 
         private Set<String> convertibleExtensions = Set.of("doc", "docx", "ppt", "pptx", "xls", "xlsx", "wpd", "rtf",
-                                                           "txt", "odt", "ods", "odp");
+                "txt", "odt", "ods", "odp");
     }
 
     @Data
     public static class Pdf {
-        private boolean optimize = true;
+        private String optimizerStrategy;
         private Ghostscript ghostscript = new Ghostscript();
         private QPDF qpdf = new QPDF();
 
         @Data
         public static class QPDF {
-            private RetryConfig retry = new RetryConfig();
+
+            @Data
+            public static class QPDFOptimizer {
+                private RetryConfig retry = new RetryConfig();
+                private long optimizationTimeoutMinutes;
+                private List<String> options;
+            }
+
+            @Data
+            public static class QPDFSplitter {
+                private RetryConfig retry = new RetryConfig();
+            }
+
+            private QPDFOptimizer optimizer = new QPDFOptimizer();
+            private QPDFSplitter splitter = new QPDFSplitter();
         }
 
         @Data

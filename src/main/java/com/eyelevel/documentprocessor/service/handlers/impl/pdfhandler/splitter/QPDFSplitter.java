@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 public class QPDFSplitter implements PdfSplitter {
 
     private static final Pattern QPDF_PASSWORD_ERROR_PATTERN = Pattern.compile("file is encrypted",
-                                                                               Pattern.CASE_INSENSITIVE);
+            Pattern.CASE_INSENSITIVE);
     private final ProcessExecutor processExecutor;
 
     @Override
@@ -34,11 +34,11 @@ public class QPDFSplitter implements PdfSplitter {
 
     @Override
     @Retryable(retryFor = {FileConversionException.class, IOException.class, InterruptedException.class},
-               maxAttemptsExpression = "#{${app.processing.pdf.qpdf.retry.attempts} + 1}",
-               backoff = @Backoff(delayExpression = "#{${app.processing.pdf.qpdf.retry.delay-ms}}"),
-               listeners = {"qpdfRetryListener"})
+            maxAttemptsExpression = "#{${app.processing.pdf.qpdf.splitter.retry.attempts} + 1}",
+            backoff = @Backoff(delayExpression = "#{${app.processing.pdf.qpdf.splitter.retry.delay-ms}}"),
+            listeners = {"qpdfRetryListener"})
     public List<File> split(File inputFile, int pagesPerChunk, String contextInfo)
-    throws FileConversionException, FileProtectedException, IOException, InterruptedException {
+            throws FileConversionException, FileProtectedException, IOException, InterruptedException {
 
         int totalPages = getPageCount(inputFile, contextInfo);
         if (totalPages <= pagesPerChunk) {
@@ -46,7 +46,7 @@ public class QPDFSplitter implements PdfSplitter {
         }
 
         log.info("[{}] Splitting PDF '{}' ({} pages) into chunks of {} pages using a compatible qpdf loop.",
-                 contextInfo, inputFile.getName(), totalPages, pagesPerChunk);
+                contextInfo, inputFile.getName(), totalPages, pagesPerChunk);
 
         List<File> outputFiles = new ArrayList<>();
         String baseName = FilenameUtils.getBaseName(inputFile.getName());
@@ -59,8 +59,8 @@ public class QPDFSplitter implements PdfSplitter {
 
                 // Build a simple, robust command for a single chunk.
                 List<String> command = List.of("qpdf", inputFile.getAbsolutePath(), "--pages", ".",
-                                               // Represents the input file
-                                               startPage + "-" + endPage, "--", outputFile.getAbsolutePath());
+                        // Represents the input file
+                        startPage + "-" + endPage, "--", outputFile.getAbsolutePath());
 
                 // Execute the command for this single chunk.
                 ProcessExecutor.ProcessResult result = processExecutor.execute(command, contextInfo, 2, "qpdf");
@@ -71,7 +71,7 @@ public class QPDFSplitter implements PdfSplitter {
                     }
                     throw new FileConversionException(
                             String.format("qpdf splitting failed for '%s' (pages %d-%d). Error: %s",
-                                          inputFile.getName(), startPage, endPage, result.stderr()));
+                                    inputFile.getName(), startPage, endPage, result.stderr()));
                 }
 
                 // Verify this one chunk was created.
@@ -83,7 +83,7 @@ public class QPDFSplitter implements PdfSplitter {
             }
 
             log.info("[{}] Successfully split '{}' into {} parts using qpdf.", contextInfo, inputFile.getName(),
-                     outputFiles.size());
+                    outputFiles.size());
             return outputFiles;
 
         } catch (IOException | InterruptedException e) {
@@ -112,21 +112,21 @@ public class QPDFSplitter implements PdfSplitter {
 
     @Recover
     public List<File> recover(Exception e, File inputFile, int pagesPerChunk, String contextInfo)
-    throws FileConversionException, FileProtectedException {
+            throws FileConversionException, FileProtectedException {
         if (e instanceof FileProtectedException) {
             log.error("[{}] {} determined '{}' is password protected. This is a terminal failure.", contextInfo,
-                      getStrategyName(), inputFile.getName());
+                    getStrategyName(), inputFile.getName());
             throw (FileProtectedException) e;
         }
         log.error("[{}] {} failed for '{}' after all retry attempts.", contextInfo, getStrategyName(),
-                  inputFile.getName(), e);
+                inputFile.getName(), e);
         throw new FileConversionException(
                 String.format("%s failed for '%s' after all retries.", getStrategyName(), inputFile.getName()), e);
     }
 
     @Override
     public int getPageCount(File pdfFile, String contextInfo)
-    throws FileConversionException, FileProtectedException, IOException, InterruptedException {
+            throws FileConversionException, FileProtectedException, IOException, InterruptedException {
         List<String> command = List.of("qpdf", "--show-npages", pdfFile.getAbsolutePath());
         try {
             ProcessExecutor.ProcessResult result = processExecutor.execute(command, contextInfo, 1, "qpdf");

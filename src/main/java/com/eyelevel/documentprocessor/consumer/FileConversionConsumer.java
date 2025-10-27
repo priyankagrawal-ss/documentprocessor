@@ -39,7 +39,7 @@ public class FileConversionConsumer {
         final Object idObject = message.get("fileMasterId");
         if (!(idObject instanceof Number)) {
             log.error("[FATAL] SQS message is invalid or missing 'fileMasterId'. Message will be dropped. Payload: {}",
-                      message);
+                    message);
             return;
         }
 
@@ -61,9 +61,9 @@ public class FileConversionConsumer {
             // The JobLifecycleManager is called within the pipeline service to handle the failure state.
             // This exception is re-thrown to leverage the SQS retry/DLQ mechanism for transient errors.
             log.error("Pipeline execution failed for FileMaster ID: {}. Re-throwing to trigger SQS retry.",
-                      fileMasterId, e);
+                    fileMasterId, e);
             throw new MessageProcessingFailedException("Pipeline processing failed for FileMaster ID " + fileMasterId,
-                                                       e);
+                    e);
         }
     }
 }

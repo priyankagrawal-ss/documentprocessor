@@ -96,11 +96,24 @@ app:
     max-file-size: ${APP_PROCESSING_FILE_MAX_BYTES_SIZE}
     max-pages: ${APP_PROCESSING_MAX_PAGES}
     pdf:
+      optimizer-strategy: ${OPTIMIZER_STRATEGY}
       optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
       qpdf:
-        retry:
-          attempts: ${APP_PROCESSING_PDF_QPDF_RETRY_ATTEMPTS}
-          delay-ms: ${APP_PROCESSING_PDF_QPDF_RETRY_DELAY_MS}
+        splitter:
+          retry:
+            attempts: ${APP_PROCESSING_PDF_OPTIMIZE_QPDF_RETRY_ATTEMPTS}
+            delay-ms: ${APP_PROCESSING_PDF_OPTIMIZE_QPDF_RETRY_DELAY_MS}
+        optimizer:
+          optimization-timeout-minutes: ${APP_PROCESSING_PDF_QPDF_OPTIMIZATION_TIMEOUT_MINUTES}
+          options:
+            - --linearize
+            - --object-streams=generate
+            - --compress-streams=y
+            - --recompress-flate
+            - --remove-unreferenced-resources=yes
+          retry:
+            attempts: ${APP_PROCESSING_PDF_SPLIT_QPDF_RETRY_ATTEMPTS}
+            delay-ms: ${APP_PROCESSING_PDF_SPLIT_QPDF_RETRY_DELAY_MS}
       ghostscript:
         preset: ${APP_PROCESSING_PDF_GHOSTSCRIPT_PRESET}
         optimization-timeout-minutes: ${APP_PROCESSING_PDF_GHOSTSCRIPT_OPTIMIZATION_TIMEOUT_MINUTES}
