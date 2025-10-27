@@ -8,7 +8,11 @@ spring:
     active: ${ACTIVE_PROFILE}
   application:
     name: ${SPRING_APPLICATION_NAME}
-
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${SPRING_DATASOURCE_URL}
@@ -66,8 +70,12 @@ spring:
       shutdown:
         await-termination: true
         await-termination-period: 30s
-
+springdoc:
+  api-docs:
+    path: /api-docs
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   sqs:
     listener:
       zip-process-queue:
