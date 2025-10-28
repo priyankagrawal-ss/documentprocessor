@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: documentprocessor-postgres
+    container_name: fx-doc-processor-postgres
     environment:
       POSTGRES_DB: doc_processor_db
       POSTGRES_USER: priyank
@@ -12,14 +12,15 @@ services:
       - postgres-data:/var/lib/postgresql/data
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U priyank -d doc_processor_db"]
+      test: [ "CMD-SHELL", "pg_isready -U priyank -d doc_processor_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
   document-processor:
+    image: fx-doc-processor:latest
     build: .
-    container_name: documentprocessor-app
+    container_name: fx-doc-processor-app
     env_file:
       - .env
     ports:
@@ -31,7 +32,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: documentprocessor-pgadmin
+    container_name: fx-doc-processor-pgadmin
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@example.com

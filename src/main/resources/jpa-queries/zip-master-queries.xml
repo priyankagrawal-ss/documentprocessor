@@ -22,4 +22,14 @@
             ]]>
         </query>
     </named-query>
+
+    <named-query name="ZipMaster.findStatusAndFileNameByStatusIn">
+        <query>
+            <![CDATA[
+                SELECT new com.eyelevel.documentprocessor.dto.metric.ZipStatusFileNameDto(zm.zipProcessingStatus, zm.originalFileName)
+                FROM ZipMaster zm
+                WHERE zm.zipProcessingStatus IN :statuses
+            ]]>
+        </query>
+    </named-query>
 </entity-mappings>

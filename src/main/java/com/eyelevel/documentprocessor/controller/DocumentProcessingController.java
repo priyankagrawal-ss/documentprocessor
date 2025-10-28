@@ -11,11 +11,13 @@ import com.eyelevel.documentprocessor.dto.uploadfile.direct.PresignedUploadRespo
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.CompleteMultipartUploadRequest;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.InitiateMultipartUploadResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.PresignedUrlPartResponse;
+import com.eyelevel.documentprocessor.model.ZipProcessingStatus;
 import com.eyelevel.documentprocessor.service.file.DownloadService;
 import com.eyelevel.documentprocessor.service.file.RetryService;
 import com.eyelevel.documentprocessor.service.file.view.DocumentProcessingViewService;
 import com.eyelevel.documentprocessor.service.job.JobLifecycleManager;
 import com.eyelevel.documentprocessor.service.job.JobOrchestrationService;
+import com.eyelevel.documentprocessor.service.zip.ZipProcessingListService;
 import com.eyelevel.documentprocessor.view.DocumentProcessingView;
 import com.smartsensesolutions.commons.dao.filter.FilterRequest;
 import com.smartsensesolutions.commons.dao.operator.Operator;
@@ -52,7 +54,8 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     private final JobLifecycleManager jobLifecycleManager;
     private final RetryService retryService;
     private final DownloadService downloadService;
-    
+    private final ZipProcessingListService zipProcessingListService;
+
     // --- 1. UPLOAD ENDPOINTS ---
 
     @Override
@@ -245,6 +248,22 @@ public class DocumentProcessingController implements DocumentProcessingApi {
 
         return ResponseEntity.ok(response);
     }
+
+    @Override
+    @GetMapping("/v1/views/zip-processing")
+    public ResponseEntity<ApiResponse<Map<ZipProcessingStatus, List<String>>>> zipProcessingStatus() {
+        Map<ZipProcessingStatus, List<String>> zipProcessingStatusListMap =
+                zipProcessingListService.listZipFilesByProcessingStatus();
+
+        ApiResponse<Map<ZipProcessingStatus, List<String>>> result = ApiResponse.<Map<ZipProcessingStatus, List<String>>>builder()
+                .response(zipProcessingStatusListMap)
+                .showMessage(false)
+                .displayMessage("Zip processing status retrieved successfully.")
+                .build();
+
+        return ResponseEntity.ok(result);
+    }
+
 
     @Override
     @PostMapping("/v1/downloads/presigned-url")

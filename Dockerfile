@@ -1,28 +1,41 @@
-# Stage 1: Build the Java application using Gradle
+# ============================
+# Stage 1: Build with Gradle
+# ============================
 FROM gradle:8.7-jdk21 AS build
-WORKDIR /home/gradle/src
-COPY --chown=gradle:gradle . .
-RUN gradle build --no-daemon -x test
-
-# Stage 2: Create the final runtime image
-FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
-# Install runtime dependencies including LibreOffice, Ghostscript, AND qpdf
+COPY gradlew ./
+COPY gradle gradle
+COPY build.gradle* settings.gradle* ./
+
+RUN ./gradlew --no-daemon dependencies || true
+
+COPY src src
+
+RUN ./gradlew build --no-daemon -x test
+
+# ============================
+# Stage 2: Runtime Image
+# ============================
+FROM eclipse-temurin:21-jre-jammy AS runtime
+WORKDIR /app
+
 RUN apt-get update && \
-    apt-get install -y \
-        libreoffice \
-        libreoffice-java-common \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         fonts-liberation2 \
         ghostscript \
+        libreoffice \
         qpdf \
-        --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Copy the application JAR from the 'build' stage
-COPY --from=build /home/gradle/src/build/libs/*.jar app.jar
+
+COPY --from=build /app/build/libs/*.jar app.jar
+
+RUN useradd -ms /bin/bash appuser
+USER appuser
 
 EXPOSE 8080
 ENV SOFFICE_PATH=/usr/bin/soffice
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

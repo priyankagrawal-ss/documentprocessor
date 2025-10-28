@@ -1,5 +1,6 @@
 package com.eyelevel.documentprocessor.repository;
 
+import com.eyelevel.documentprocessor.dto.metric.ZipStatusFileNameDto;
 import com.eyelevel.documentprocessor.model.ZipMaster;
 import com.eyelevel.documentprocessor.model.ZipProcessingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,4 +31,7 @@ public interface ZipMasterRepository extends JpaRepository<ZipMaster, Long> {
 
     @Query(name = "ZipMaster.findByIdWithJob")
     Optional<ZipMaster> findByIdWithJob(@Param("id") Long id);
+
+    @Query(name = "ZipMaster.findStatusAndFileNameByStatusIn")
+    List<ZipStatusFileNameDto> findStatusAndFileNameByStatusIn(@Param("statuses") List<ZipProcessingStatus> statuses);
 }

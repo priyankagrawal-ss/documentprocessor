@@ -11,6 +11,7 @@ import com.eyelevel.documentprocessor.dto.uploadfile.direct.PresignedUploadRespo
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.CompleteMultipartUploadRequest;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.InitiateMultipartUploadResponse;
 import com.eyelevel.documentprocessor.dto.uploadfile.multipart.PresignedUrlPartResponse;
+import com.eyelevel.documentprocessor.model.ZipProcessingStatus;
 import com.eyelevel.documentprocessor.view.DocumentProcessingView;
 import com.smartsensesolutions.commons.dao.filter.FilterRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,16 +39,16 @@ public interface DocumentProcessingApi {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Pre-signed URL generated successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = PresignedUploadResponse.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Pre-signed URL for direct upload generated successfully.",
-                                        "data": {
+                                        "displayMessage": "Pre-signed URL for direct upload generated successfully.",
+                                        "response": {
                                             "jobId": 1,
                                             "uploadUrl": "https://your-bucket.s3.region.amazonaws.com/..."
-                                        }
+                                        },
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Missing or invalid fileName.",
@@ -68,16 +69,16 @@ public interface DocumentProcessingApi {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Multipart upload initiated successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = InitiateMultipartUploadResponse.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Multipart upload initiated successfully.",
-                                        "data": {
+                                        "displayMessage": "Multipart upload initiated successfully.",
+                                        "response": {
                                             "jobId": 2,
                                             "uploadId": "TehG5i3g.T2123s5543d.d12..."
-                                        }
+                                        },
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Missing or invalid fileName.",
@@ -98,15 +99,15 @@ public interface DocumentProcessingApi {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Pre-signed URL for the part generated successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = PresignedUrlPartResponse.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Request was successful.",
-                                        "data": {
+                                        "displayMessage": "Pre-signed URL for part upload generated successfully.",
+                                        "response": {
                                             "presignedUrl": "https://your-bucket.s3.region.amazonaws.com/...?partNumber=1&uploadId=..."
-                                        }
+                                        },
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid or missing parameters.",
@@ -128,12 +129,12 @@ public interface DocumentProcessingApi {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Multipart upload completed successfully.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Multipart upload completed successfully.",
-                                        "data": null
+                                        "displayMessage": "Multipart upload completed and file successfully assembled.",
+                                        "response": null,
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid request body or parameters.",
@@ -145,9 +146,10 @@ public interface DocumentProcessingApi {
             @Parameter(description = "The ID of the job being completed.", required = true, example = "1")
             @PathVariable Long jobId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Request body containing the uploadId and the list of completed parts with their ETags.",
+                    required = true,
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = CompleteMultipartUploadRequest.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "CompleteUpload", value = """
                                     {
                                         "jobId": 2,
                                         "uploadId": "TehG5i3g.T2123s5543d.d12...",
@@ -163,7 +165,7 @@ public interface DocumentProcessingApi {
                                         ]
                                     }
                                     """)))
-            @RequestBody CompleteMultipartUploadRequest request);
+            @RequestBody @Valid CompleteMultipartUploadRequest request);
 
     @Operation(summary = "Trigger Backend Processing",
             description = "Signals the system to start processing a file that has been successfully uploaded. This enqueues the job for asynchronous processing.")
@@ -171,12 +173,12 @@ public interface DocumentProcessingApi {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", description = "Processing has been accepted and queued.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Processing has been accepted and queued.",
-                                        "data": null
+                                        "displayMessage": "Processing started and job has been queued.",
+                                        "response": null,
+                                        "showMessage": true,
+                                        "statusCode": 202
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - The job is not in a triggerable state.",
@@ -194,12 +196,12 @@ public interface DocumentProcessingApi {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", description = "Retry request accepted and the task has been re-queued.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Retry request accepted and the task has been re-queued.",
-                                        "data": null
+                                        "displayMessage": "Retry request accepted. The task has been re-queued for processing.",
+                                        "response": null,
+                                        "showMessage": true,
+                                        "statusCode": 202
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid request body or the task is not in a retryable state.",
@@ -208,13 +210,21 @@ public interface DocumentProcessingApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class)))
     })
     ResponseEntity<ApiResponse<Void>> retryFailedTask(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The request body containing the ID of the failed task. Exactly one of 'fileMasterId' or 'gxMasterId' must be provided.", required = true,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The request body containing the ID of the failed task. Exactly one of 'fileMasterId' or 'gxMasterId' must be provided.",
+                    required = true,
                     content = @Content(schema = @Schema(implementation = RetryRequest.class),
-                            examples = @ExampleObject(name = "Retry File Processing", value = """
-                                    {
-                                        "fileMasterId": 105
-                                    }
-                                    """)))
+                            examples = {
+                                    @ExampleObject(name = "Retry File Processing", summary = "Retry a failed file conversion/processing task", value = """
+                                            {
+                                                "fileMasterId": 105
+                                            }
+                                            """),
+                                    @ExampleObject(name = "Retry GX Upload", summary = "Retry a failed upload to the GX system", value = """
+                                            {
+                                                "gxMasterId": 210
+                                            }
+                                            """)
+                            }))
             @Valid @RequestBody RetryRequest retryRequest);
 
     @Operation(summary = "[ADMIN] Terminate a Single Job",
@@ -223,12 +233,12 @@ public interface DocumentProcessingApi {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", description = "Termination request has been accepted.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Termination request for job ID 1 has been accepted.",
-                                        "data": null
+                                        "displayMessage": "Termination signal sent for job ID 1.",
+                                        "response": null,
+                                        "showMessage": true,
+                                        "statusCode": 202
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Not Found - The specified job ID does not exist.",
@@ -243,16 +253,16 @@ public interface DocumentProcessingApi {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Termination signal sent successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = TerminateAllResponse.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Request was successful.",
-                                        "data": {
-                                            "message": "Termination signal sent to 15 active jobs and queues have been purged.",
+                                        "displayMessage": "15 active job(s) terminated successfully.",
+                                        "response": {
+                                            "message": "15 active job(s) terminated successfully.",
                                             "jobsTerminated": 15
-                                        }
+                                        },
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """)))
     })
@@ -263,13 +273,11 @@ public interface DocumentProcessingApi {
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Document list retrieved successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Page.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Request was successful.",
-                                        "data": {
+                                        "displayMessage": "Document list retrieved successfully.",
+                                        "response": {
                                             "content": [
                                                 {
                                                     "id": 101,
@@ -293,7 +301,9 @@ public interface DocumentProcessingApi {
                                             "totalElements": 1,
                                             "totalPages": 1,
                                             "last": true
-                                        }
+                                        },
+                                        "showMessage": false,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid filter request.",
@@ -411,20 +421,18 @@ public interface DocumentProcessingApi {
                                                     }
                                                     """)
                             }))
-            @RequestBody FilterRequest filterRequest);
+            @RequestBody @Valid FilterRequest filterRequest);
 
     @Operation(summary = "Get Document Status Metrics",
             description = "Retrieves a summary of document counts grouped by their processing status for a given list of bucket IDs.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Metrics retrieved successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = Map.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Request was successful.",
-                                        "data": {
+                                        "displayMessage": "Metrics retrieved successfully.",
+                                        "response": {
                                             "12345": [
                                                 { "status": "Completed", "count": 50 },
                                                 { "status": "Failed", "count": 2 },
@@ -434,36 +442,83 @@ public interface DocumentProcessingApi {
                                                 { "status": "Completed", "count": 120 },
                                                 { "status": "Failed", "count": 10 }
                                             ]
-                                        }
+                                        },
+                                        "showMessage": false,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid request body.",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class)))
     })
     ResponseEntity<ApiResponse<Map<Integer, List<StatusMetricItem>>>> getDocumentMetrics(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "A JSON object containing a list of gxBucketIds.", required = true,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "A JSON object containing a list of gxBucketIds.",
+                    required = true,
                     content = @Content(schema = @Schema(implementation = MetricsRequest.class),
-                            examples = @ExampleObject(value = """
+                            examples = @ExampleObject(name = "GetMetrics", value = """
                                     {
                                         "gxBucketIds": [12345, 67890]
                                     }
                                     """)))
-            @RequestBody MetricsRequest request);
+            @RequestBody @Valid MetricsRequest request);
+
+    @Operation(
+            summary = "List ZIP Files by Extraction Status",
+            description = """
+                    Retrieves all ZIP files currently in the extraction pipeline, grouped by their processing status.
+                    This endpoint helps monitor the progress of ZIP file extraction jobs, such as queued or in-progress files.
+                    """
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "ZIP file processing statuses retrieved successfully.",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
+                                    {
+                                        "displayMessage": "Zip processing status retrieved successfully.",
+                                        "response": {
+                                            "QUEUED_FOR_EXTRACTION": [
+                                                "monthly_reports.zip",
+                                                "finance_docs.zip"
+                                            ],
+                                            "EXTRACTION_IN_PROGRESS": [
+                                                "client_data.zip"
+                                            ]
+                                        },
+                                        "showMessage": false,
+                                        "statusCode": 200
+                                    }
+                                    """)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500",
+                    description = "Internal Server Error - Unable to retrieve ZIP file statuses.",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<ApiResponse<Map<ZipProcessingStatus, List<String>>>> zipProcessingStatus();
+
 
     @Operation(summary = "Generate Pre-signed Download URL",
-            description = "Generates a temporary, secure, pre-signed URL for downloading a processed file. The request must specify either a 'fileMasterId' or a 'gxMasterId'. If 'gxMasterId' is provided, it will be used as the priority source.")
+            description = "Generates a temporary, secure, pre-signed URL for downloading a processed file. The request must specify either a 'fileMasterId' or a 'gxMasterId'.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Pre-signed download URL generated successfully.",
                     content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = PresignedDownloadResponse.class),
-                            examples = @ExampleObject(value = """
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "Success", value = """
                                     {
-                                        "success": true,
-                                        "timestamp": 1672531200000,
-                                        "message": "Request was successful.",
-                                        "data": {
+                                        "displayMessage": "Pre-signed download URL generated successfully.",
+                                        "response": {
                                             "downloadUrl": "https://your-bucket.s3.region.amazonaws.com/..."
-                                        }
+                                        },
+                                        "showMessage": true,
+                                        "statusCode": 200
                                     }
                                     """))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Bad Request - Invalid request body or the specified file is not available for download.",
@@ -472,15 +527,16 @@ public interface DocumentProcessingApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class)))
     })
     ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The request body containing the ID of the file to download. Exactly one of 'fileMasterId' or 'gxMasterId' must be provided.", required = true,
-                    content = @Content(schema = @Schema(implementation = RetryRequest.class),
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The request body containing the ID of the file to download. Exactly one of 'fileMasterId' or 'gxMasterId' must be provided.",
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = DownloadFileRequest.class),
                             examples = {
                                     @ExampleObject(name = "Download from GxMaster (Preferred)", value = """
                                             {
                                                 "gxMasterId": 210
                                             }
                                             """),
-                                    @ExampleObject(name = "Download from FileMaster", value = """
+                                    @ExampleObject(name = "Download from FileMaster (Fallback)", value = """
                                             {
                                                 "fileMasterId": 105
                                             }
