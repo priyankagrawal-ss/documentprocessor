@@ -3,43 +3,16 @@
                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                  xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence/orm https://jakarta.ee/xml/ns/persistence/orm/orm_3_0.xsd"
                  version="3.0">
-
-    <!--
-     OPTIMIZED: Named native query for document status metrics.
-     This query provides a complete picture of all document statuses, including zero counts,
-     with clear disambiguation between the 'Ingestion' and 'GroundX' pipeline stages.
-    -->
     <named-native-query name="DocumentProcessingView.findStatusMetricsByBucketIds.native"
                         result-set-mapping="StatusMetricMapping">
         <query>
             <![CDATA[
                 WITH
                 -------------------------------------------------------------------
-                -- CTE 1: Define the complete, canonical list of all possible display statuses.
-                -- This is the key to ensuring all statuses appear in the results, even with zero counts.
+                -- CTE 1: Gather and pre-aggregate status data for the requested buckets.
+                -- This combines data retrieval and initial counting in a single step.
                 -------------------------------------------------------------------
-                all_statuses AS (
-                    SELECT 'Completed (GroundX)' AS display_status UNION ALL
-                    SELECT 'Active (GroundX)' UNION ALL
-                    SELECT 'Inactive (GroundX)' UNION ALL
-                    SELECT 'Skipped (GroundX)' UNION ALL
-                    SELECT 'Queued for Upload (GroundX)' UNION ALL
-                    SELECT 'Queued (GroundX)' UNION ALL
-                    SELECT 'Processing (GroundX)' UNION ALL
-                    SELECT 'Error (GroundX)' UNION ALL
-                    SELECT 'Cancelled (GroundX)' UNION ALL
-                    SELECT 'Terminated (GroundX)' UNION ALL
-                    SELECT 'Queued (Ingestion)' UNION ALL
-                    SELECT 'Processing (Ingestion)' UNION ALL
-                    SELECT 'Error (Ingestion)' UNION ALL
-                    SELECT 'Duplicate (Ingestion)' UNION ALL
-                    SELECT 'Ignored (Ingestion)' UNION ALL
-                    SELECT 'Terminated (Ingestion)'
-                ),
-                -------------------------------------------------------------------
-                -- CTE 2: Gather the raw status data for the requested buckets, applying the same logic as the view.
-                -------------------------------------------------------------------
-                document_status_data AS (
+                document_counts AS (
                     -- GroundX statuses (final stage)
                     SELECT
                         gm.gx_bucket_id,
@@ -55,10 +28,14 @@
                             WHEN 'CANCELLED'          THEN 'Cancelled (GroundX)'
                             WHEN 'TERMINATED'         THEN 'Terminated (GroundX)'
                             ELSE 'Unknown'
-                        END AS display_status
+                        END AS display_status,
+                        COUNT(*) AS status_count
                     FROM gx_master gm
                     WHERE gm.gx_bucket_id IN (:gxBucketIds)
+                    GROUP BY gm.gx_bucket_id, gm.gx_status
+
                     UNION ALL
+
                     -- Ingestion statuses (for files not yet in GroundX)
                     SELECT
                         fm.gx_bucket_id,
@@ -70,64 +47,37 @@
                             WHEN 'IGNORED'      THEN 'Ignored (Ingestion)'
                             WHEN 'TERMINATED'   THEN 'Terminated (Ingestion)'
                             ELSE 'Unknown'
-                        END AS display_status
+                        END AS display_status,
+                        COUNT(*) AS status_count
                     FROM file_master fm
                     WHERE
                         fm.gx_bucket_id IN (:gxBucketIds)
+                        AND fm.file_processing_status != 'COMPLETED'
                         AND NOT EXISTS (
                             SELECT 1 FROM gx_master gm WHERE gm.source_file_id = fm.id
                         )
-                        AND fm.file_processing_status != 'COMPLETED'
-                ),
-                -------------------------------------------------------------------
-                -- CTE 3: Aggregate the raw counts per bucket and status.
-                -------------------------------------------------------------------
-                actual_counts AS (
-                    SELECT
-                        gx_bucket_id,
-                        display_status,
-                        COUNT(*) AS status_count
-                    FROM document_status_data
-                    GROUP BY gx_bucket_id, display_status
-                ),
-                -------------------------------------------------------------------
-                -- CTE 4: Create a complete scaffold of all buckets crossed with all possible statuses.
-                -------------------------------------------------------------------
-                bucket_status_scaffold AS (
-                    SELECT
-                        b.gx_bucket_id,
-                        s.display_status
-                    FROM (SELECT DISTINCT gx_bucket_id FROM document_status_data) b
-                    CROSS JOIN all_statuses s
-                ),
-                -------------------------------------------------------------------
-                -- CTE 5: Join the actual counts to the scaffold to fill in zeros for missing statuses.
-                -------------------------------------------------------------------
-                status_metrics AS (
-                    SELECT
-                        scaffold.gx_bucket_id,
-                        scaffold.display_status,
-                        COALESCE(counts.status_count, 0) AS status_count
-                    FROM bucket_status_scaffold scaffold
-                    LEFT JOIN actual_counts counts
-                        ON scaffold.gx_bucket_id = counts.gx_bucket_id
-                        AND scaffold.display_status = counts.display_status
+                    GROUP BY fm.gx_bucket_id, fm.file_processing_status
                 )
                 -------------------------------------------------------------------
-                -- FINAL SELECT: Combine the individual metrics with a calculated 'Total' row for each bucket.
+                -- FINAL SELECT: Present the aggregated metrics and calculate the 'Total' row.
                 -------------------------------------------------------------------
-                SELECT gx_bucket_id, display_status, status_count
-                FROM status_metrics
-                WHERE status_count > 0 -- Only show statuses that exist for the bucket or have a count
+                -- Part 1: Select the individual status counts that were calculated in the CTE.
+                SELECT
+                    gx_bucket_id,
+                    display_status,
+                    status_count
+                FROM document_counts
 
                 UNION ALL
 
+                -- Part 2: Calculate the 'Total' count for each bucket.
+                -- The CAST is retained to prevent the data type mismatch issue.
                 SELECT
                     gx_bucket_id,
                     'Total' AS display_status,
-                    SUM(status_count) AS status_count
-                FROM status_metrics
-                GROUP BY gx_bucket_id
+                    CAST(SUM(status_count) AS BIGINT) AS status_count
+                FROM document_counts
+                GROUP BY gx_bucket_id;
             ]]>
         </query>
     </named-native-query>
