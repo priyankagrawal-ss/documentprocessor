@@ -97,7 +97,6 @@ app:
     max-pages: ${APP_PROCESSING_MAX_PAGES}
     pdf:
       optimizer-strategy: ${OPTIMIZER_STRATEGY}
-      optimize: ${APP_PROCESSING_PDF_OPTIMIZE}
       qpdf:
         splitter:
           retry:
