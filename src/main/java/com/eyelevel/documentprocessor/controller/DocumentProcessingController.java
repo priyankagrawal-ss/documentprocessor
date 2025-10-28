@@ -36,8 +36,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST controller for managing the entire document processing workflow, from upload to finalization.
- * All responses from this controller follow the standardized ApiResponse format.
+ * REST controller for managing document processing lifecycle,
+ * including upload, processing, retry, termination, and metrics.
+ * All responses follow the standardized {@link ApiResponse} format.
  */
 @Slf4j
 @RestController
@@ -52,7 +53,7 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     private final RetryService retryService;
     private final DownloadService downloadService;
 
-    private static final String DEFAULT_SUCCESS_MESSAGE = "Request was successful.";
+    private static final String DEFAULT_SUCCESS_MESSAGE = "Request completed successfully.";
 
     // --- 1. UPLOAD ENDPOINTS ---
 
@@ -62,13 +63,18 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestParam("fileName") @NotBlank(message = "The 'fileName' parameter cannot be empty.") final String fileName,
             @RequestParam(value = "gxBucketId", required = false) @Positive(message = "The 'gxBucketId' must be a positive number.") final Integer gxBucketId,
             @RequestParam(value = "skipGxProcess", defaultValue = "false") final boolean skipGxProcess) {
+
+        log.info("Creating direct upload URL for file: {}, gxBucketId: {}, skipGxProcess: {}", fileName, gxBucketId, skipGxProcess);
+
         PresignedUploadResponse responseData = jobOrchestrationService.createJobAndPresignedUrl(fileName, gxBucketId, skipGxProcess);
+
         ApiResponse<PresignedUploadResponse> response = ApiResponse.<PresignedUploadResponse>builder()
                 .response(responseData)
-                .displayMessage("Pre-signed URL for direct upload generated successfully.")
+                .displayMessage("Pre-signed URL for direct file upload generated successfully.")
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -78,13 +84,18 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestParam("fileName") @NotBlank(message = "The 'fileName' parameter cannot be empty.") final String fileName,
             @RequestParam(value = "gxBucketId", required = false) @Positive(message = "The 'gxBucketId' must be a positive number.") final Integer gxBucketId,
             @RequestParam(value = "skipGxProcess", defaultValue = "false") final boolean skipGxProcess) {
+
+        log.info("Initiating multipart upload for file: {}, gxBucketId: {}, skipGxProcess: {}", fileName, gxBucketId, skipGxProcess);
+
         InitiateMultipartUploadResponse responseData = jobOrchestrationService.createJobAndInitiateMultipartUpload(fileName, gxBucketId, skipGxProcess);
+
         ApiResponse<InitiateMultipartUploadResponse> response = ApiResponse.<InitiateMultipartUploadResponse>builder()
                 .response(responseData)
                 .displayMessage("Multipart upload initiated successfully.")
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -94,14 +105,19 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId,
             @PathVariable @Min(value = 1, message = "The 'partNumber' must be at least 1.") @Max(value = 10000, message = "The 'partNumber' cannot exceed 10000.") final int partNumber,
             @RequestParam("uploadId") @NotBlank(message = "The 'uploadId' parameter cannot be empty.") final String uploadId) {
+
+        log.debug("Generating pre-signed URL for jobId: {}, uploadId: {}, partNumber: {}", jobId, uploadId, partNumber);
+
         PresignedUrlPartResponse responseData = new PresignedUrlPartResponse(
                 jobOrchestrationService.generatePresignedUrlForPart(jobId, uploadId, partNumber));
+
         ApiResponse<PresignedUrlPartResponse> response = ApiResponse.<PresignedUrlPartResponse>builder()
                 .response(responseData)
-                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .displayMessage("Pre-signed URL for part upload generated successfully.")
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -110,12 +126,16 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     public ResponseEntity<ApiResponse<Void>> completeMultipartUpload(
             @PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId,
             @RequestBody @Valid final CompleteMultipartUploadRequest request) {
+
+        log.info("Completing multipart upload for jobId: {}, uploadId: {}", jobId, request.getUploadId());
         jobOrchestrationService.completeMultipartUpload(jobId, request.getUploadId(), request.getParts());
+
         ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .displayMessage("Multipart upload completed successfully.")
+                .displayMessage("Multipart upload completed and file successfully assembled.")
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -124,51 +144,66 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     @Override
     @PostMapping("/v1/jobs/{jobId}/trigger-processing")
     public ResponseEntity<ApiResponse<Void>> startProcessing(@PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId) {
+        log.info("Triggering processing for jobId: {}", jobId);
         jobOrchestrationService.triggerProcessing(jobId);
+
         ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .displayMessage("Processing has been accepted and queued.")
+                .displayMessage("Processing started and job has been queued.")
                 .showMessage(true)
                 .statusCode(HttpStatus.ACCEPTED.value())
                 .build();
+
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
     @PostMapping("/v1/jobs/retry")
     public ResponseEntity<ApiResponse<Void>> retryFailedTask(@Valid @RequestBody final RetryRequest retryRequest) {
+        log.warn("Retrying failed job with parameters: {}", retryRequest);
         retryService.retryFailedProcess(retryRequest);
+
         ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .displayMessage("Retry request accepted and the task has been re-queued.")
+                .displayMessage("Retry request accepted. The task has been re-queued for processing.")
                 .showMessage(true)
                 .statusCode(HttpStatus.ACCEPTED.value())
                 .build();
+
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
     @PostMapping("/v1/jobs/{jobId}/terminate")
     public ResponseEntity<ApiResponse<Void>> terminateJob(@PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId) {
+        log.warn("Terminating jobId: {}", jobId);
         jobLifecycleManager.terminateJob(jobId);
+
         ApiResponse<Void> response = ApiResponse.<Void>builder()
-                .displayMessage("Termination request for job ID " + jobId + " has been accepted.")
+                .displayMessage("Termination signal sent for job ID " + jobId + ".")
                 .showMessage(true)
                 .statusCode(HttpStatus.ACCEPTED.value())
                 .build();
+
         return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
     @PostMapping("/v1/jobs/terminate-all-active")
     public ResponseEntity<ApiResponse<TerminateAllResponse>> terminateAllActiveJobs() {
+        log.warn("Terminating all active jobs.");
         int terminatedCount = jobLifecycleManager.terminateAllActiveJobs();
-        String message = String.format("Termination signal sent to %d active jobs and queues have been purged.", terminatedCount);
-        TerminateAllResponse responseData = new TerminateAllResponse(message, terminatedCount);
+
+        TerminateAllResponse responseData = new TerminateAllResponse(
+                String.format("%d active job(s) terminated successfully.", terminatedCount),
+                terminatedCount
+        );
+
         ApiResponse<TerminateAllResponse> response = ApiResponse.<TerminateAllResponse>builder()
                 .response(responseData)
-                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .displayMessage(responseData.getMessage())
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -179,14 +214,19 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     public ResponseEntity<ApiResponse<Page<DocumentProcessingView>>> listDocuments(
             @PathVariable("gxBucketId") @Positive(message = "The 'gxBucketId' must be a positive number.") final Integer gxBucketId,
             @RequestBody @Valid final FilterRequest filterRequest) {
+
+        log.debug("Listing documents for gxBucketId: {}", gxBucketId);
         filterRequest.appendCriteria("gxBucketId", Operator.EQUALS, String.valueOf(gxBucketId));
+
         Page<DocumentProcessingView> documents = documentProcessingViewService.filter(filterRequest);
+
         ApiResponse<Page<DocumentProcessingView>> response = ApiResponse.<Page<DocumentProcessingView>>builder()
                 .response(documents)
-                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
-                .showMessage(true)
+                .displayMessage("Document list retrieved successfully.")
+                .showMessage(false)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
@@ -194,26 +234,35 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     @PostMapping("/v1/views/metrics")
     public ResponseEntity<ApiResponse<Map<Integer, List<StatusMetricItem>>>> getDocumentMetrics(
             @RequestBody @Valid final MetricsRequest request) {
+
+        log.debug("Fetching document metrics for bucket IDs: {}", request.getGxBucketIds());
         Map<Integer, List<StatusMetricItem>> metrics = documentProcessingViewService.getMetricsForBuckets(request.getGxBucketIds());
+
         ApiResponse<Map<Integer, List<StatusMetricItem>>> response = ApiResponse.<Map<Integer, List<StatusMetricItem>>>builder()
                 .response(metrics)
-                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
-                .showMessage(true)
+                .displayMessage("Metrics retrieved successfully.")
+                .showMessage(false)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 
     @Override
     @PostMapping("/v1/downloads/presigned-url")
-    public ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(@Valid @RequestBody final DownloadFileRequest request) {
+    public ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(
+            @Valid @RequestBody final DownloadFileRequest request) {
+
+        log.info("Generating pre-signed download URL for: {}", request);
         PresignedDownloadResponse responseData = downloadService.generatePresignedDownloadUrl(request);
+
         ApiResponse<PresignedDownloadResponse> response = ApiResponse.<PresignedDownloadResponse>builder()
                 .response(responseData)
-                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .displayMessage("Pre-signed download URL generated successfully.")
                 .showMessage(true)
                 .statusCode(HttpStatus.OK.value())
                 .build();
+
         return ResponseEntity.ok(response);
     }
 }
