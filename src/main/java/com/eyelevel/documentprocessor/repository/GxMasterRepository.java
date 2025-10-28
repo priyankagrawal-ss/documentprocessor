@@ -2,6 +2,7 @@ package com.eyelevel.documentprocessor.repository;
 
 import com.eyelevel.documentprocessor.model.GxMaster;
 import com.eyelevel.documentprocessor.model.GxStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -34,10 +35,12 @@ public interface GxMasterRepository extends JpaRepository<GxMaster, Long> {
     int updateStatusForJobIds(@Param("jobId") List<Long> jobId, @Param("newStatus") GxStatus newStatus,
                               @Param("statusesToUpdate") List<GxStatus> statusesToUpdate);
 
-    @Query(name = "GxMaster.findAllByStatusInOrderByCreatedAtAsc")
-    List<GxMaster> findAllByStatusInOrderByCreatedAtAsc(@Param("statuses") List<GxStatus> statuses, Pageable pageable);
+    Page<GxMaster> findAllByGxStatusInOrderByCreatedAtAsc(
+            List<GxStatus> statuses,
+            Pageable pageable
+    );
 
     @Query(name = "GxMaster.findFileLocationById")
     Optional<String> findFileLocationById(@Param("id") Long id);
-    
+
 }

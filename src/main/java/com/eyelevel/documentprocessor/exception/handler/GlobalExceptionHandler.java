@@ -44,7 +44,11 @@ public class GlobalExceptionHandler {
             BadRequestException.class})
     public ResponseEntity<ApiResponse<Object>> handleBadRequest(RuntimeException ex) {
         log.warn("Bad Request Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -54,7 +58,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         log.warn("Handling HttpMessageNotReadableException: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error("Malformed request body.", "The request body is missing or could not be parsed.");
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Malformed request body: The request body is missing or could not be parsed.")
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -65,7 +73,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleMissingServletRequestParameter(MissingServletRequestParameterException ex) {
         String errorMessage = String.format("Required parameter '%s' of type '%s' is missing.", ex.getParameterName(), ex.getParameterType());
         log.warn("Handling MissingServletRequestParameterException: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Required parameter is missing.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Required parameter is missing: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -79,24 +91,31 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
         String errorMessage = "Validation failed: " + errors;
         log.warn("Handling validation exception: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Invalid input provided.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Invalid input provided: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
     /**
-     * NEW: Handles validation errors from @Validated on path variables and request parameters. (400 Bad Request)
+     * Handles validation errors from @Validated on path variables and request parameters. (400 Bad Request)
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Object>> handleConstraintViolation(ConstraintViolationException ex) {
         String errors = ex.getConstraintViolations().stream()
                 .map(violation -> String.format("'%s': %s",
-                        // Extracts the parameter name from the property path
                         violation.getPropertyPath().toString().substring(violation.getPropertyPath().toString().lastIndexOf('.') + 1),
                         violation.getMessage()))
                 .collect(Collectors.joining(", "));
         String errorMessage = "Validation failed: " + errors;
         log.warn("Handling constraint violation exception: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Invalid input provided.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Invalid input provided: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -105,12 +124,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        String errorMessage = String.format("Invalid value '%s' for parameter '%s'. Expected type '%s'.", ex.getValue(),
-                ex.getName(), ex.getRequiredType() != null
-                        ? ex.getRequiredType().getSimpleName()
-                        : String.valueOf(ex.getRequiredType()));
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "Unknown";
+        String errorMessage = String.format("Invalid value '%s' for parameter '%s'. Expected type '%s'.", ex.getValue(), ex.getName(), requiredType);
         log.warn("Handling type mismatch exception: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Invalid parameter type provided.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Invalid parameter type provided: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
@@ -120,7 +141,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Object>> handleUnauthorized(UnauthorizedException ex) {
         log.warn("Unauthorized Access Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.UNAUTHORIZED.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
@@ -130,7 +155,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiResponse<Object>> handleForbidden(ForbiddenException ex) {
         log.warn("Forbidden Access Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.FORBIDDEN.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
@@ -140,19 +169,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleNotFound(NotFoundException ex) {
         log.warn("Resource Not Found Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
     /**
      * Handles invalid URLs that don't map to any controller. (404 Not Found)
-     * NOTE: Requires 'spring.mvc.throw-exception-if-no-handler-found=true' in properties.
      */
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
         String errorMessage = String.format("No endpoint %s found for %s", ex.getHttpMethod(), ex.getRequestURL());
         log.warn("Handling NoHandlerFoundException: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Resource not found.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Resource not found: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.NOT_FOUND.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
@@ -164,7 +200,11 @@ public class GlobalExceptionHandler {
         String supportedMethods = String.join(", ", Objects.requireNonNull(ex.getSupportedMethods()));
         String errorMessage = String.format("Request method '%s' not supported. Supported methods are: %s", ex.getMethod(), supportedMethods);
         log.warn("Handling HttpRequestMethodNotSupportedException: {}", errorMessage);
-        ApiResponse<Object> response = ApiResponse.error("Method not allowed.", errorMessage);
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("Method not allowed: " + errorMessage)
+                .showMessage(true)
+                .statusCode(HttpStatus.METHOD_NOT_ALLOWED.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
@@ -174,7 +214,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Object>> handleConflict(ConflictException ex) {
         log.warn("Conflict Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.CONFLICT.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
@@ -184,10 +228,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ApiResponse<Object>> handleTooManyRequests(TooManyRequestsException ex) {
         log.warn("Too Many Requests Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.TOO_MANY_REQUESTS.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.TOO_MANY_REQUESTS);
     }
-
 
     // --- 5xx Server Error Handlers ---
 
@@ -197,7 +244,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadGatewayException.class)
     public ResponseEntity<ApiResponse<Object>> handleBadGateway(BadGatewayException ex) {
         log.error("Bad Gateway Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.BAD_GATEWAY.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.BAD_GATEWAY);
     }
 
@@ -207,7 +258,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<ApiResponse<Object>> handleServiceUnavailable(ServiceUnavailableException ex) {
         log.error("Service Unavailable Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -217,19 +272,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(GatewayTimeoutException.class)
     public ResponseEntity<ApiResponse<Object>> handleGatewayTimeout(GatewayTimeoutException ex) {
         log.error("Gateway Timeout Exception: {}", ex.getMessage());
-        ApiResponse<Object> response = ApiResponse.error(ex.getMessage());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage(ex.getMessage())
+                .showMessage(true)
+                .statusCode(HttpStatus.GATEWAY_TIMEOUT.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.GATEWAY_TIMEOUT);
     }
 
     /**
      * A final catch-all handler for any other unexpected exceptions. (500 Internal Server Error)
-     * This includes InternalServerException and any other RuntimeException.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("An unexpected internal server error occurred", ex);
-        ApiResponse<Object> response = ApiResponse.error(
-                "An unexpected internal error occurred. Please contact support.", ex.getClass().getSimpleName());
+        ApiResponse<Object> response = ApiResponse.builder()
+                .displayMessage("An unexpected internal error occurred. Please contact support: " + ex.getClass().getSimpleName())
+                .showMessage(true)
+                .statusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .build();
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

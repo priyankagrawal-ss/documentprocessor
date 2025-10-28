@@ -14,16 +14,6 @@
         </query>
     </named-query>
 
-    <named-query name="GxMaster.findAllByStatusInOrderByCreatedAtAsc">
-        <query>
-            <![CDATA[
-                SELECT gm FROM GxMaster gm
-                WHERE gm.gxStatus IN :statuses
-                ORDER BY gm.createdAt ASC
-            ]]>
-        </query>
-    </named-query>
-
     <named-query name="GxMaster.findAllByProcessingJobId">
         <query>
             <![CDATA[

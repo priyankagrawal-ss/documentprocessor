@@ -43,9 +43,10 @@ public class GXDocumentUploadFetchStatus {
         log.info("Starting GX document status fetch scheduler...");
 
         final List<GxStatus> activeStatuses = List.of(GxStatus.PROCESSING, GxStatus.QUEUED);
-        final List<GxMaster> activeProcesses = gxMasterRepository.findAllByStatusInOrderByCreatedAtAsc(activeStatuses,
-                                                                                                       Pageable.unpaged());
-
+        List<GxMaster> activeProcesses =
+                gxMasterRepository.findAllByGxStatusInOrderByCreatedAtAsc(activeStatuses, Pageable.unpaged())
+                        .getContent();
+        
         if (CollectionUtils.isEmpty(activeProcesses)) {
             log.info("No active GX processes found. Scheduler run is complete.");
             return;
@@ -57,18 +58,18 @@ public class GXDocumentUploadFetchStatus {
         for (final GxMaster gxMaster : activeProcesses) {
             try {
                 log.debug("Fetching status for GxMaster ID: {}, Process ID: {}", gxMaster.getId(),
-                          gxMaster.getGxProcessId());
+                        gxMaster.getGxProcessId());
                 final IngestResponse ingestResponse = gxApiClient.fetchUploadDocumentStatus(gxMaster.getGxProcessId());
 
                 extractDocumentDetails(ingestResponse).ifPresentOrElse(documentDetails -> {
                     updateMasterFromDocumentDetails(gxMaster, documentDetails);
                     mastersToUpdate.add(gxMaster);
                 }, () -> log.warn("Could not find document details in GX response for process ID: {}",
-                                  gxMaster.getGxProcessId()));
+                        gxMaster.getGxProcessId()));
 
             } catch (final Exception e) {
                 log.error("Failed to fetch or process status for GxMaster ID: {}. Marking as ERROR.", gxMaster.getId(),
-                          e);
+                        e);
                 gxMaster.setGxStatus(GxStatus.ERROR);
                 gxMaster.setErrorMessage("Failed to retrieve status from GX: " + e.getMessage());
                 mastersToUpdate.add(gxMaster);
@@ -88,7 +89,6 @@ public class GXDocumentUploadFetchStatus {
      * It checks categories in order of finality: complete, errors, cancelled, and finally processing.
      *
      * @param ingestResponse The response from the GX API.
-     *
      * @return An {@link Optional} containing the document details if found.
      */
     private Optional<IngestResponse.Document> extractDocumentDetails(final IngestResponse ingestResponse) {
@@ -97,10 +97,10 @@ public class GXDocumentUploadFetchStatus {
         }
         final IngestResponse.Progress progress = ingestResponse.ingest().progress();
         return findFirstDocumentInCategory(progress.complete()).or(() -> findFirstDocumentInCategory(progress.errors()))
-                                                               .or(() -> findFirstDocumentInCategory(
-                                                                       progress.cancelled()))
-                                                               .or(() -> findFirstDocumentInCategory(
-                                                                       progress.processing()));
+                .or(() -> findFirstDocumentInCategory(
+                        progress.cancelled()))
+                .or(() -> findFirstDocumentInCategory(
+                        progress.processing()));
     }
 
     /**
@@ -122,6 +122,6 @@ public class GXDocumentUploadFetchStatus {
             gxMaster.setErrorMessage(document.statusMessage());
         }
         log.info("Updating GxMaster ID: {}. New status: {}, Message: '{}'", gxMaster.getId(), newStatus,
-                 gxMaster.getErrorMessage());
+                gxMaster.getErrorMessage());
     }
 }

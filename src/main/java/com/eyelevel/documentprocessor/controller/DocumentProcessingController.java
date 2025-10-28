@@ -43,7 +43,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/documents")
 @RequiredArgsConstructor
-@Validated // Enables validation for path variables and request parameters
+@Validated
 public class DocumentProcessingController implements DocumentProcessingApi {
 
     private final JobOrchestrationService jobOrchestrationService;
@@ -51,6 +51,9 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     private final JobLifecycleManager jobLifecycleManager;
     private final RetryService retryService;
     private final DownloadService downloadService;
+
+    private static final String DEFAULT_SUCCESS_MESSAGE = "Request was successful.";
+
     // --- 1. UPLOAD ENDPOINTS ---
 
     @Override
@@ -60,7 +63,13 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestParam(value = "gxBucketId", required = false) @Positive(message = "The 'gxBucketId' must be a positive number.") final Integer gxBucketId,
             @RequestParam(value = "skipGxProcess", defaultValue = "false") final boolean skipGxProcess) {
         PresignedUploadResponse responseData = jobOrchestrationService.createJobAndPresignedUrl(fileName, gxBucketId, skipGxProcess);
-        return ResponseEntity.ok(ApiResponse.success(responseData, "Pre-signed URL for direct upload generated successfully."));
+        ApiResponse<PresignedUploadResponse> response = ApiResponse.<PresignedUploadResponse>builder()
+                .response(responseData)
+                .displayMessage("Pre-signed URL for direct upload generated successfully.")
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @Override
@@ -70,7 +79,13 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestParam(value = "gxBucketId", required = false) @Positive(message = "The 'gxBucketId' must be a positive number.") final Integer gxBucketId,
             @RequestParam(value = "skipGxProcess", defaultValue = "false") final boolean skipGxProcess) {
         InitiateMultipartUploadResponse responseData = jobOrchestrationService.createJobAndInitiateMultipartUpload(fileName, gxBucketId, skipGxProcess);
-        return ResponseEntity.ok(ApiResponse.success(responseData, "Multipart upload initiated successfully."));
+        ApiResponse<InitiateMultipartUploadResponse> response = ApiResponse.<InitiateMultipartUploadResponse>builder()
+                .response(responseData)
+                .displayMessage("Multipart upload initiated successfully.")
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @Override
@@ -81,7 +96,13 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestParam("uploadId") @NotBlank(message = "The 'uploadId' parameter cannot be empty.") final String uploadId) {
         PresignedUrlPartResponse responseData = new PresignedUrlPartResponse(
                 jobOrchestrationService.generatePresignedUrlForPart(jobId, uploadId, partNumber));
-        return ResponseEntity.ok(ApiResponse.success(responseData));
+        ApiResponse<PresignedUrlPartResponse> response = ApiResponse.<PresignedUrlPartResponse>builder()
+                .response(responseData)
+                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @Override
@@ -90,7 +111,12 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId,
             @RequestBody @Valid final CompleteMultipartUploadRequest request) {
         jobOrchestrationService.completeMultipartUpload(jobId, request.getUploadId(), request.getParts());
-        return ResponseEntity.ok(ApiResponse.success(null, "Multipart upload completed successfully."));
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .displayMessage("Multipart upload completed successfully.")
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     // --- 2. JOB LIFECYCLE ENDPOINTS ---
@@ -99,21 +125,36 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     @PostMapping("/v1/jobs/{jobId}/trigger-processing")
     public ResponseEntity<ApiResponse<Void>> startProcessing(@PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId) {
         jobOrchestrationService.triggerProcessing(jobId);
-        return new ResponseEntity<>(ApiResponse.success(null, "Processing has been accepted and queued."), HttpStatus.ACCEPTED);
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .displayMessage("Processing has been accepted and queued.")
+                .showMessage(true)
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
     @PostMapping("/v1/jobs/retry")
     public ResponseEntity<ApiResponse<Void>> retryFailedTask(@Valid @RequestBody final RetryRequest retryRequest) {
         retryService.retryFailedProcess(retryRequest);
-        return new ResponseEntity<>(ApiResponse.success(null, "Retry request accepted and the task has been re-queued."), HttpStatus.ACCEPTED);
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .displayMessage("Retry request accepted and the task has been re-queued.")
+                .showMessage(true)
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
     @PostMapping("/v1/jobs/{jobId}/terminate")
     public ResponseEntity<ApiResponse<Void>> terminateJob(@PathVariable @Positive(message = "The 'jobId' must be a positive number.") final Long jobId) {
         jobLifecycleManager.terminateJob(jobId);
-        return new ResponseEntity<>(ApiResponse.success(null, "Termination request for job ID " + jobId + " has been accepted."), HttpStatus.ACCEPTED);
+        ApiResponse<Void> response = ApiResponse.<Void>builder()
+                .displayMessage("Termination request for job ID " + jobId + " has been accepted.")
+                .showMessage(true)
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.ACCEPTED);
     }
 
     @Override
@@ -122,7 +163,13 @@ public class DocumentProcessingController implements DocumentProcessingApi {
         int terminatedCount = jobLifecycleManager.terminateAllActiveJobs();
         String message = String.format("Termination signal sent to %d active jobs and queues have been purged.", terminatedCount);
         TerminateAllResponse responseData = new TerminateAllResponse(message, terminatedCount);
-        return ResponseEntity.ok(ApiResponse.success(responseData));
+        ApiResponse<TerminateAllResponse> response = ApiResponse.<TerminateAllResponse>builder()
+                .response(responseData)
+                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     // --- 3. VIEW AND METRICS ENDPOINTS ---
@@ -134,7 +181,13 @@ public class DocumentProcessingController implements DocumentProcessingApi {
             @RequestBody @Valid final FilterRequest filterRequest) {
         filterRequest.appendCriteria("gxBucketId", Operator.EQUALS, String.valueOf(gxBucketId));
         Page<DocumentProcessingView> documents = documentProcessingViewService.filter(filterRequest);
-        return ResponseEntity.ok(ApiResponse.success(documents));
+        ApiResponse<Page<DocumentProcessingView>> response = ApiResponse.<Page<DocumentProcessingView>>builder()
+                .response(documents)
+                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @Override
@@ -142,13 +195,25 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     public ResponseEntity<ApiResponse<Map<Integer, List<StatusMetricItem>>>> getDocumentMetrics(
             @RequestBody @Valid final MetricsRequest request) {
         Map<Integer, List<StatusMetricItem>> metrics = documentProcessingViewService.getMetricsForBuckets(request.getGxBucketIds());
-        return ResponseEntity.ok(ApiResponse.success(metrics));
+        ApiResponse<Map<Integer, List<StatusMetricItem>>> response = ApiResponse.<Map<Integer, List<StatusMetricItem>>>builder()
+                .response(metrics)
+                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 
     @Override
     @PostMapping("/v1/downloads/presigned-url")
     public ResponseEntity<ApiResponse<PresignedDownloadResponse>> generatePresignedDownloadUrl(@Valid @RequestBody final DownloadFileRequest request) {
         PresignedDownloadResponse responseData = downloadService.generatePresignedDownloadUrl(request);
-        return ResponseEntity.ok(ApiResponse.success(responseData));
+        ApiResponse<PresignedDownloadResponse> response = ApiResponse.<PresignedDownloadResponse>builder()
+                .response(responseData)
+                .displayMessage(DEFAULT_SUCCESS_MESSAGE)
+                .showMessage(true)
+                .statusCode(HttpStatus.OK.value())
+                .build();
+        return ResponseEntity.ok(response);
     }
 }

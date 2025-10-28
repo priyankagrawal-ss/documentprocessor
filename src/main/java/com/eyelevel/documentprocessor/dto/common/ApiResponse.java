@@ -1,71 +1,35 @@
 package com.eyelevel.documentprocessor.dto.common;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
-
-import java.time.Instant;
 
 /**
  * A standardized, generic wrapper for all API responses.
  * It provides a consistent structure for both successful and failed responses,
  * making it easy for clients (like the UI) to handle them.
- *
- * @param <T> The type of the data payload for successful responses.
- */
+ **/
 @Getter
-@Setter
+@Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
-
-    private boolean success;
-    private long timestamp;
-    private String message;
-    private T data;
-    private String errorDetails;
-
-    // Private constructor to force usage of static factory methods
-    private ApiResponse() {
-        this.timestamp = Instant.now().toEpochMilli();
-    }
-
-    // --- Static Factory Methods for SUCCESS cases ---
+    /**
+     * A message to display to the user.
+     */
+    private final String displayMessage;
 
     /**
-     * Creates a successful API response with a data payload and a message.
+     * The response data.
      */
-    public static <T> ApiResponse<T> success(T data, String message) {
-        ApiResponse<T> response = new ApiResponse<>();
-        response.setSuccess(true);
-        response.setData(data);
-        response.setMessage(message);
-        return response;
-    }
+    private final T response;
 
     /**
-     * Creates a successful API response with just a data payload.
+     * A flag indicating whether to show the display message.
      */
-    public static <T> ApiResponse<T> success(T data) {
-        return success(data, "Request was successful.");
-    }
-
-    // --- Static Factory Methods for ERROR cases ---
+    private final Boolean showMessage;
 
     /**
-     * Creates a failed API response with a message and detailed error info.
+     * The HTTP status code of the response.
      */
-    public static <T> ApiResponse<T> error(String message, String errorDetails) {
-        ApiResponse<T> response = new ApiResponse<>();
-        response.setSuccess(false);
-        response.setMessage(message);
-        response.setErrorDetails(errorDetails);
-        return response;
-    }
-
-    /**
-     * Creates a simple failed API response with just a message.
-     */
-    public static <T> ApiResponse<T> error(String message) {
-        return error(message, null);
-    }
+    private final Integer statusCode;
 }
