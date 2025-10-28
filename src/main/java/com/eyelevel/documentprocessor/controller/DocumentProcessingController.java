@@ -52,9 +52,7 @@ public class DocumentProcessingController implements DocumentProcessingApi {
     private final JobLifecycleManager jobLifecycleManager;
     private final RetryService retryService;
     private final DownloadService downloadService;
-
-    private static final String DEFAULT_SUCCESS_MESSAGE = "Request completed successfully.";
-
+    
     // --- 1. UPLOAD ENDPOINTS ---
 
     @Override
